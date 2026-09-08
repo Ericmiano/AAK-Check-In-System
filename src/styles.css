@@ -1,0 +1,241 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * AAK Convention Check-In design system.
+ * Warm coastal editorial palette taken from convention.aak.or.ke:
+ * cream paper, deep charcoal, AAK red, sand, muted olive and ocean accents.
+ * All colors are oklch. Components only use semantic tokens.
+ */
+
+@theme inline {
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+
+  --color-sand: var(--sand);
+  --color-sand-foreground: var(--sand-foreground);
+  --color-charcoal: var(--charcoal);
+  --color-charcoal-foreground: var(--charcoal-foreground);
+  --color-terracotta: var(--terracotta);
+  --color-olive: var(--olive);
+  --color-ocean: var(--ocean);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-soft: var(--info-soft);
+  --color-danger-soft: var(--danger-soft);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-tactile: 0 1px 0 oklch(0.215 0.014 30 / 6%), 0 8px 24px -12px oklch(0.215 0.014 30 / 22%);
+  --shadow-badge: 0 2px 0 oklch(0.215 0.014 30 / 5%), 0 24px 48px -24px oklch(0.215 0.014 30 / 35%);
+
+  --animate-reveal: reveal 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-scan-success: scan-success 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-banner-in: banner-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes reveal {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scan-success {
+    0% { transform: scale(0.6); opacity: 0; }
+    60% { transform: scale(1.05); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes banner-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+:root {
+  --radius: 0.5rem;
+
+  --background: oklch(0.977 0.007 84);
+  --foreground: oklch(0.215 0.014 30);
+  --card: oklch(0.992 0.004 84);
+  --card-foreground: oklch(0.215 0.014 30);
+  --popover: oklch(0.992 0.004 84);
+  --popover-foreground: oklch(0.215 0.014 30);
+
+  --primary: oklch(0.522 0.208 22.5);
+  --primary-foreground: oklch(0.985 0.005 84);
+  --secondary: oklch(0.945 0.012 80);
+  --secondary-foreground: oklch(0.255 0.016 30);
+  --muted: oklch(0.955 0.011 84);
+  --muted-foreground: oklch(0.478 0.019 40);
+  --accent: oklch(0.93 0.02 70);
+  --accent-foreground: oklch(0.255 0.016 30);
+  --destructive: oklch(0.522 0.208 22.5);
+  --destructive-foreground: oklch(0.985 0.005 84);
+  --border: oklch(0.885 0.014 75);
+  --input: oklch(0.86 0.016 75);
+  --ring: oklch(0.522 0.208 22.5);
+
+  --sand: oklch(0.93 0.025 78);
+  --sand-foreground: oklch(0.32 0.03 45);
+  --charcoal: oklch(0.215 0.014 30);
+  --charcoal-foreground: oklch(0.965 0.008 84);
+  --terracotta: oklch(0.6 0.12 42);
+  --olive: oklch(0.52 0.06 128);
+  --ocean: oklch(0.52 0.08 218);
+
+  --success: oklch(0.47 0.11 145);
+  --success-foreground: oklch(0.985 0.005 84);
+  --success-soft: oklch(0.93 0.045 145);
+  --warning: oklch(0.55 0.12 62);
+  --warning-foreground: oklch(0.985 0.005 84);
+  --warning-soft: oklch(0.94 0.055 80);
+  --info: oklch(0.45 0.08 218);
+  --info-foreground: oklch(0.985 0.005 84);
+  --info-soft: oklch(0.93 0.03 218);
+  --danger-soft: oklch(0.94 0.04 22);
+
+  --chart-1: oklch(0.522 0.208 22.5);
+  --chart-2: oklch(0.52 0.06 128);
+  --chart-3: oklch(0.52 0.08 218);
+  --chart-4: oklch(0.6 0.12 42);
+  --chart-5: oklch(0.478 0.019 40);
+  --sidebar: oklch(0.965 0.008 84);
+  --sidebar-foreground: oklch(0.215 0.014 30);
+  --sidebar-primary: oklch(0.522 0.208 22.5);
+  --sidebar-primary-foreground: oklch(0.985 0.005 84);
+  --sidebar-accent: oklch(0.93 0.02 70);
+  --sidebar-accent-foreground: oklch(0.255 0.016 30);
+  --sidebar-border: oklch(0.885 0.014 75);
+  --sidebar-ring: oklch(0.522 0.208 22.5);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    background-image: radial-gradient(oklch(0.215 0.014 30 / 5%) 0.5px, transparent 0.5px);
+    background-size: 22px 22px;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Editorial eyebrow label, matches the reference site's tracked caps */
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+/* Thin architectural rule line used as a section frame */
+@utility frame-line {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 1px;
+    background: var(--color-border);
+  }
+}
+
+/* Drawing-grid surface for the operational areas */
+@utility plan-grid {
+  background-color: var(--color-sand);
+  background-image:
+    linear-gradient(oklch(0.215 0.014 30 / 6%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.215 0.014 30 / 6%) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Tool panel: flat card with a tactile hairline shadow */
+@utility panel {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-tactile);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
