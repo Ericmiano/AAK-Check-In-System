@@ -1,0 +1,109 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const bootstrapSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(255),
+  password: z.string().min(8).max(72),
+});
+
+/**
+ * Public: creates the very first administrator. Only ever succeeds once.
+ * claim_first_admin() takes an advisory lock and re-checks server-side, so a
+ * race between two people submitting this form at once still yields exactly
+ * one admin; the loser's freshly-created auth user is deleted again here.
+ */
+export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
+  .validator((data: unknown) => bootstrapSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const email = data.email.toLowerCase();
+
+    const { data: exists } = await supabaseAdmin.rpc("admin_exists");
+    if (exists) {
+      return { ok: false as const, error: "An administrator account already exists." };
+    }
+
+    const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: { full_name: data.fullName },
+    });
+    if (createError || !created.user) {
+      return { ok: false as const, error: createError?.message ?? "Could not create the account." };
+    }
+
+    const { data: claimed, error: claimError } = await supabaseAdmin.rpc("claim_first_admin", {
+      p_user_id: created.user.id,
+      p_full_name: data.fullName,
+      p_email: email,
+    });
+
+    if (claimError || !claimed) {
+      await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+      return { ok: false as const, error: "An administrator account already exists." };
+    }
+
+    return { ok: true as const };
+  });
+
+const provisionSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(255),
+  password: z.string().min(8).max(72),
+  role: z.enum(["staff", "admin"]),
+});
+
+/**
+ * Admin-only: invites a new staff or admin account. Creating a Supabase Auth
+ * user requires the service role, so this step must run server-side; the
+ * follow-up admin_provision_staff RPC runs as the *inviting admin's own*
+ * session so staff_profiles/user_roles writes stay attributable and audited.
+ */
+export const provisionStaff = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => provisionSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: roleRows } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const { data: profile } = await context.supabase
+      .from("staff_profiles")
+      .select("active")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    const isAdmin = (roleRows ?? []).some((r) => r.role === "admin") && profile?.active !== false;
+    if (!isAdmin) {
+      return { ok: false as const, error: "Not authorized." };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const email = data.email.toLowerCase();
+
+    const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: { full_name: data.fullName },
+    });
+    if (createError || !created.user) {
+      return { ok: false as const, error: createError?.message ?? "Could not create the account." };
+    }
+
+    const { error: provisionError } = await context.supabase.rpc("admin_provision_staff", {
+      p_user_id: created.user.id,
+      p_full_name: data.fullName,
+      p_email: email,
+      p_role: data.role,
+    });
+
+    if (provisionError) {
+      await supabaseAdmin.auth.admin.deleteUser(created.user.id);
+      return { ok: false as const, error: provisionError.message };
+    }
+
+    return { ok: true as const };
+  });

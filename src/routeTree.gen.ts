@@ -10,33 +10,141 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminAuditRouteImport } from './routes/admin/audit'
+import { Route as AdminImportRouteImport } from './routes/admin/import'
+import { Route as AdminStaffRouteImport } from './routes/admin/staff'
+import { Route as KioskTokenRouteImport } from './routes/kiosk/$token'
+import { Route as StaffCheckInRouteImport } from './routes/staff/check-in'
+import { Route as StaffDashboardRouteImport } from './routes/staff/dashboard'
+import { Route as StaffLoginRouteImport } from './routes/staff/login'
+import { Route as StaffProfileRouteImport } from './routes/staff/profile'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/admin/audit',
+  path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminImportRoute = AdminImportRouteImport.update({
+  id: '/admin/import',
+  path: '/admin/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminStaffRoute = AdminStaffRouteImport.update({
+  id: '/admin/staff',
+  path: '/admin/staff',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KioskTokenRoute = KioskTokenRouteImport.update({
+  id: '/kiosk/$token',
+  path: '/kiosk/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffCheckInRoute = StaffCheckInRouteImport.update({
+  id: '/staff/check-in',
+  path: '/staff/check-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffDashboardRoute = StaffDashboardRouteImport.update({
+  id: '/staff/dashboard',
+  path: '/staff/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffLoginRoute = StaffLoginRouteImport.update({
+  id: '/staff/login',
+  path: '/staff/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaffProfileRoute = StaffProfileRouteImport.update({
+  id: '/staff/profile',
+  path: '/staff/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/import': typeof AdminImportRoute
+  '/admin/staff': typeof AdminStaffRoute
+  '/kiosk/$token': typeof KioskTokenRoute
+  '/staff/check-in': typeof StaffCheckInRoute
+  '/staff/dashboard': typeof StaffDashboardRoute
+  '/staff/login': typeof StaffLoginRoute
+  '/staff/profile': typeof StaffProfileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/import': typeof AdminImportRoute
+  '/admin/staff': typeof AdminStaffRoute
+  '/kiosk/$token': typeof KioskTokenRoute
+  '/staff/check-in': typeof StaffCheckInRoute
+  '/staff/dashboard': typeof StaffDashboardRoute
+  '/staff/login': typeof StaffLoginRoute
+  '/staff/profile': typeof StaffProfileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/import': typeof AdminImportRoute
+  '/admin/staff': typeof AdminStaffRoute
+  '/kiosk/$token': typeof KioskTokenRoute
+  '/staff/check-in': typeof StaffCheckInRoute
+  '/staff/dashboard': typeof StaffDashboardRoute
+  '/staff/login': typeof StaffLoginRoute
+  '/staff/profile': typeof StaffProfileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/admin/audit'
+    | '/admin/import'
+    | '/admin/staff'
+    | '/kiosk/$token'
+    | '/staff/check-in'
+    | '/staff/dashboard'
+    | '/staff/login'
+    | '/staff/profile'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/admin/audit'
+    | '/admin/import'
+    | '/admin/staff'
+    | '/kiosk/$token'
+    | '/staff/check-in'
+    | '/staff/dashboard'
+    | '/staff/login'
+    | '/staff/profile'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin/audit'
+    | '/admin/import'
+    | '/admin/staff'
+    | '/kiosk/$token'
+    | '/staff/check-in'
+    | '/staff/dashboard'
+    | '/staff/login'
+    | '/staff/profile'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminAuditRoute: typeof AdminAuditRoute
+  AdminImportRoute: typeof AdminImportRoute
+  AdminStaffRoute: typeof AdminStaffRoute
+  KioskTokenRoute: typeof KioskTokenRoute
+  StaffCheckInRoute: typeof StaffCheckInRoute
+  StaffDashboardRoute: typeof StaffDashboardRoute
+  StaffLoginRoute: typeof StaffLoginRoute
+  StaffProfileRoute: typeof StaffProfileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +156,75 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/audit': {
+      id: '/admin/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/import': {
+      id: '/admin/import'
+      path: '/admin/import'
+      fullPath: '/admin/import'
+      preLoaderRoute: typeof AdminImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/staff': {
+      id: '/admin/staff'
+      path: '/admin/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AdminStaffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kiosk/$token': {
+      id: '/kiosk/$token'
+      path: '/kiosk/$token'
+      fullPath: '/kiosk/$token'
+      preLoaderRoute: typeof KioskTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/staff/check-in': {
+      id: '/staff/check-in'
+      path: '/staff/check-in'
+      fullPath: '/staff/check-in'
+      preLoaderRoute: typeof StaffCheckInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/staff/dashboard': {
+      id: '/staff/dashboard'
+      path: '/staff/dashboard'
+      fullPath: '/staff/dashboard'
+      preLoaderRoute: typeof StaffDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/staff/login': {
+      id: '/staff/login'
+      path: '/staff/login'
+      fullPath: '/staff/login'
+      preLoaderRoute: typeof StaffLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/staff/profile': {
+      id: '/staff/profile'
+      path: '/staff/profile'
+      fullPath: '/staff/profile'
+      preLoaderRoute: typeof StaffProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminAuditRoute: AdminAuditRoute,
+  AdminImportRoute: AdminImportRoute,
+  AdminStaffRoute: AdminStaffRoute,
+  KioskTokenRoute: KioskTokenRoute,
+  StaffCheckInRoute: StaffCheckInRoute,
+  StaffDashboardRoute: StaffDashboardRoute,
+  StaffLoginRoute: StaffLoginRoute,
+  StaffProfileRoute: StaffProfileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
