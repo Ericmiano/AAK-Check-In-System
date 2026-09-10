@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   ShieldCheck,
+  TriangleAlert,
   Upload,
   UserCircle,
   Users,
@@ -81,6 +82,14 @@ export function StaffShell({ staff, children }: { staff: StaffSession; children:
                 >
                   <ShieldCheck className="size-4" aria-hidden="true" />
                   Audit
+                </Link>
+                <Link
+                  to="/admin/errors"
+                  className={navLinkClass}
+                  activeProps={{ className: navLinkActiveClass }}
+                >
+                  <TriangleAlert className="size-4" aria-hidden="true" />
+                  Errors
                 </Link>
               </>
             )}

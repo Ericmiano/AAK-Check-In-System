@@ -15,7 +15,7 @@ export type DelegateRow = Tables<"delegates"> & {
   checked_in_by_name: string | null;
 };
 
-const DELEGATES_KEY = ["delegates-raw"] as const;
+export const DELEGATES_KEY = ["delegates-raw"] as const;
 const STAFF_NAMES_KEY = ["staff-names"] as const;
 
 type RawCheckIn = Pick<

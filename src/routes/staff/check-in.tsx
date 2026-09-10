@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Search, UserPlus } from "lucide-react";
+import { CloudUpload, Search, UserPlus } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { ResultBanner, type CheckInResult } from "@/components/result-banner";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { requireStaff } from "@/lib/staff-session";
-import { useDelegates, type DelegateRow } from "@/lib/delegates-data";
+import { DELEGATES_KEY, useDelegates, type DelegateRow } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
 import { successFeedback, noticeFeedback } from "@/lib/feedback";
+import { reportClientError } from "@/lib/error-log";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import {
+  enqueueCheckIn,
+  getQueue,
+  isLikelyNetworkError,
+  removeFromQueue,
+} from "@/lib/check-in-queue";
 
 export const Route = createFileRoute("/staff/check-in")({
   head: () => ({ meta: [{ title: "Check-in, AAK Convention 2026" }] }),
@@ -40,16 +48,31 @@ type AddAndCheckInResponse = {
   delegate: { full_name: string; organization: string; badge_code: string };
 };
 
+async function performCheckIn(
+  lookup: string,
+  deviceLabel = "Web check-in",
+): Promise<CheckInResponse> {
+  const { data, error } = await supabase.rpc("check_in_delegate", {
+    p_lookup: lookup,
+    p_method: "search",
+    p_device_label: deviceLabel,
+  });
+  if (error) throw error;
+  return data as unknown as CheckInResponse;
+}
+
 function CheckInPage() {
   const { staff } = Route.useRouteContext();
   const [result, setResult] = useState<CheckInResult | null>(null);
   const [query, setQuery] = useState("");
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [sessionCount, setSessionCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(() => getQueue().length);
   const resultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { data: delegates } = useDelegates();
+  const isOnline = useOnlineStatus();
 
   function showResult(next: CheckInResult) {
     setResult(next);
@@ -57,41 +80,88 @@ function CheckInPage() {
     resultTimerRef.current = setTimeout(() => setResult(null), 5000);
   }
 
-  const checkInMutation = useMutation({
-    mutationFn: async (vars: { lookup: string }) => {
-      const { data, error } = await supabase.rpc("check_in_delegate", {
-        p_lookup: vars.lookup,
-        p_method: "search",
-        p_device_label: "Web check-in",
+  function applySuccess(data: CheckInResponse) {
+    queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
+    const detail = data.delegate
+      ? `${data.delegate.full_name}, ${data.delegate.organization}`
+      : undefined;
+    if (data.result === "checked_in") {
+      successFeedback();
+      setSessionCount((n) => n + 1);
+      showResult({ kind: "checked_in", title: "Checked in", ...(detail ? { detail } : {}) });
+    } else if (data.result === "already_checked_in") {
+      noticeFeedback();
+      showResult({
+        kind: "already_checked_in",
+        title: "Already checked in",
+        ...(detail ? { detail } : {}),
       });
-      if (error) throw error;
-      return data as unknown as CheckInResponse;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["delegates"] });
-      const detail = data.delegate
-        ? `${data.delegate.full_name}, ${data.delegate.organization}`
-        : undefined;
-      if (data.result === "checked_in") {
-        successFeedback();
-        setSessionCount((n) => n + 1);
-        showResult({ kind: "checked_in", title: "Checked in", ...(detail ? { detail } : {}) });
-      } else if (data.result === "already_checked_in") {
-        noticeFeedback();
-        showResult({
-          kind: "already_checked_in",
-          title: "Already checked in",
-          ...(detail ? { detail } : {}),
-        });
-      } else {
-        showResult({ kind: "not_found", title: "No delegate found" });
+    } else {
+      showResult({ kind: "not_found", title: "No delegate found" });
+    }
+  }
+
+  // Retries queued check-ins (saved when a request failed while offline).
+  // Each is attempted independently so one still-failing entry doesn't block
+  // the rest; runs on regaining connectivity and as a periodic safety net,
+  // since "online" can fire optimistically on a flaky connection.
+  async function flushQueue() {
+    const queue = getQueue();
+    if (queue.length === 0) return;
+    for (const item of queue) {
+      try {
+        const data = await performCheckIn(item.lookup, "Web check-in (queued)");
+        removeFromQueue(item.id);
+        applySuccess(data);
+      } catch (err) {
+        if (!isLikelyNetworkError(err)) {
+          // The server actually rejected it (already handled elsewhere,
+          // deleted delegate, etc.) — drop it, retrying won't help.
+          removeFromQueue(item.id);
+          reportClientError(err, { context: "flushQueue", lookup: item.lookup });
+        }
+        break;
       }
+    }
+    setPendingCount(getQueue().length);
+  }
+
+  useEffect(() => {
+    if (isOnline) flushQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (navigator.onLine) flushQueue();
+    }, 20_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const checkInMutation = useMutation({
+    mutationFn: (vars: { lookup: string }) => performCheckIn(vars.lookup),
+    onSuccess: (data) => {
+      applySuccess(data);
       // Reset the search box so staff can go straight to the next person
       // without touching the mouse.
       setQuery("");
       searchInputRef.current?.focus();
     },
-    onError: () => {
+    onError: (err, vars) => {
+      if (isLikelyNetworkError(err)) {
+        enqueueCheckIn(vars.lookup);
+        setPendingCount(getQueue().length);
+        showResult({
+          kind: "queued",
+          title: "Saved — will check in once back online",
+          detail: "No connection right now. This will complete automatically.",
+        });
+        setQuery("");
+        searchInputRef.current?.focus();
+        return;
+      }
+      reportClientError(err, { context: "check_in_delegate", lookup: vars.lookup });
       showResult({ kind: "error", title: "Connection problem. Try again." });
     },
   });
@@ -118,6 +188,19 @@ function CheckInPage() {
             {sessionCount} checked in this session
           </span>
         </div>
+
+        {!isOnline && (
+          <div className="flex items-center gap-2 rounded-lg bg-warning-soft px-4 py-2.5 text-sm text-foreground">
+            <CloudUpload className="size-4 shrink-0" aria-hidden="true" />
+            No connection. Check-ins will be saved and sent automatically once you're back online.
+          </div>
+        )}
+        {isOnline && pendingCount > 0 && (
+          <div className="flex items-center gap-2 rounded-lg bg-info-soft px-4 py-2.5 text-sm text-foreground">
+            <CloudUpload className="size-4 shrink-0" aria-hidden="true" />
+            Syncing {pendingCount} pending {pendingCount === 1 ? "check-in" : "check-ins"}...
+          </div>
+        )}
 
         <ResultBanner result={result} />
 
@@ -176,7 +259,7 @@ function CheckInPage() {
             onDone={(banner) => {
               setWalkInOpen(false);
               showResult(banner);
-              queryClient.invalidateQueries({ queryKey: ["delegates"] });
+              queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
             }}
           />
         </Dialog>
@@ -248,6 +331,7 @@ function WalkInDialogContent({ onDone }: { onDone: (result: CheckInResult) => vo
       });
     },
     onError: (err) => {
+      reportClientError(err, { context: "add_and_check_in" });
       setError(err instanceof Error ? err.message : "Connection problem. Try again.");
     },
   });

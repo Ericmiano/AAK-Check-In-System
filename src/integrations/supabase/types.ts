@@ -73,6 +73,39 @@ export type Database = {
         }
         Relationships: []
       }
+      client_errors: {
+        Row: {
+          actor_email: string | null
+          actor_id: string | null
+          context: Json
+          created_at: string
+          id: string
+          message: string
+          path: string | null
+          stack: string | null
+        }
+        Insert: {
+          actor_email?: string | null
+          actor_id?: string | null
+          context?: Json
+          created_at?: string
+          id?: string
+          message: string
+          path?: string | null
+          stack?: string | null
+        }
+        Update: {
+          actor_email?: string | null
+          actor_id?: string | null
+          context?: Json
+          created_at?: string
+          id?: string
+          message?: string
+          path?: string | null
+          stack?: string | null
+        }
+        Relationships: []
+      }
       check_ins: {
         Row: {
           checked_in_at: string
@@ -316,6 +349,10 @@ export type Database = {
       is_active_admin: { Args: { _user_id: string }; Returns: boolean }
       is_active_staff: { Args: { _user_id: string }; Returns: boolean }
       kiosk_check_in: { Args: { p_email: string; p_token: string }; Returns: Json }
+      log_client_error: {
+        Args: { p_context?: Json; p_message: string; p_path?: string; p_stack?: string }
+        Returns: undefined
+      }
       log_audit: {
         Args: {
           _action: string

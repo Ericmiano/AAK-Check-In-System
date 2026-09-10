@@ -26,6 +26,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { requireAdmin } from "@/lib/staff-session";
+import { DELEGATES_KEY } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/admin/import")({
@@ -97,7 +98,7 @@ function ImportPage() {
       return data as unknown as ImportSummary;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["delegates"] });
+      queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
   });
@@ -109,7 +110,7 @@ function ImportPage() {
       return data as unknown as number;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["delegates"] });
+      queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
   });

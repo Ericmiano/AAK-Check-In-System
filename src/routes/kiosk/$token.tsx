@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, CloudUpload, Loader2, XCircle } from "lucide-react";
 import aakLogo from "@/assets/aak-org-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { reportClientError } from "@/lib/error-log";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 
 export const Route = createFileRoute("/kiosk/$token")({
   head: () => ({ meta: [{ title: "Check in, AAK Convention 2026" }] }),
@@ -23,6 +25,7 @@ function KioskPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<KioskResult | null>(null);
+  const isOnline = useOnlineStatus();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,9 +53,14 @@ function KioskPage() {
       }
       setEmail("");
     } catch (err) {
+      reportClientError(err, { context: "kiosk_check_in" });
       setResult({
         kind: "error",
-        message: err instanceof Error ? err.message : "Connection problem. Try again.",
+        message: !navigator.onLine
+          ? "You appear to be offline. Reconnect and try again, or see a staff member."
+          : err instanceof Error
+            ? err.message
+            : "Connection problem. Try again.",
       });
     } finally {
       setLoading(false);
@@ -69,6 +77,12 @@ function KioskPage() {
       </p>
 
       <div className="mt-8 w-full max-w-sm">
+        {!isOnline && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-warning-soft px-4 py-2.5 text-sm text-foreground">
+            <CloudUpload className="size-4 shrink-0" aria-hidden="true" />
+            No connection right now. Reconnect and try again, or see a staff member.
+          </div>
+        )}
         {result?.kind === "checked_in" && (
           <div className="animate-banner-in flex flex-col items-center gap-2 rounded-xl bg-success p-6 text-center text-success-foreground">
             <CheckCircle2 className="size-10" aria-hidden="true" />

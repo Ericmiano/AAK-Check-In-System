@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminAuditRouteImport } from './routes/admin/audit'
+import { Route as AdminErrorsRouteImport } from './routes/admin/errors'
 import { Route as AdminImportRouteImport } from './routes/admin/import'
 import { Route as AdminStaffRouteImport } from './routes/admin/staff'
 import { Route as KioskTokenRouteImport } from './routes/kiosk/$token'
@@ -27,6 +28,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminAuditRoute = AdminAuditRouteImport.update({
   id: '/admin/audit',
   path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminErrorsRoute = AdminErrorsRouteImport.update({
+  id: '/admin/errors',
+  path: '/admin/errors',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminImportRoute = AdminImportRouteImport.update({
@@ -68,6 +74,7 @@ const StaffProfileRoute = StaffProfileRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/errors': typeof AdminErrorsRoute
   '/admin/import': typeof AdminImportRoute
   '/admin/staff': typeof AdminStaffRoute
   '/kiosk/$token': typeof KioskTokenRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/errors': typeof AdminErrorsRoute
   '/admin/import': typeof AdminImportRoute
   '/admin/staff': typeof AdminStaffRoute
   '/kiosk/$token': typeof KioskTokenRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/errors': typeof AdminErrorsRoute
   '/admin/import': typeof AdminImportRoute
   '/admin/staff': typeof AdminStaffRoute
   '/kiosk/$token': typeof KioskTokenRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin/audit'
+    | '/admin/errors'
     | '/admin/import'
     | '/admin/staff'
     | '/kiosk/$token'
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin/audit'
+    | '/admin/errors'
     | '/admin/import'
     | '/admin/staff'
     | '/kiosk/$token'
@@ -126,6 +137,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin/audit'
+    | '/admin/errors'
     | '/admin/import'
     | '/admin/staff'
     | '/kiosk/$token'
@@ -138,6 +150,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminErrorsRoute: typeof AdminErrorsRoute
   AdminImportRoute: typeof AdminImportRoute
   AdminStaffRoute: typeof AdminStaffRoute
   KioskTokenRoute: typeof KioskTokenRoute
@@ -161,6 +174,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/audit'
       fullPath: '/admin/audit'
       preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/errors': {
+      id: '/admin/errors'
+      path: '/admin/errors'
+      fullPath: '/admin/errors'
+      preLoaderRoute: typeof AdminErrorsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/import': {
@@ -218,6 +238,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminErrorsRoute: AdminErrorsRoute,
   AdminImportRoute: AdminImportRoute,
   AdminStaffRoute: AdminStaffRoute,
   KioskTokenRoute: KioskTokenRoute,

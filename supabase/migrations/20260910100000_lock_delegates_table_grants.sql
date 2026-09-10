@@ -1,0 +1,11 @@
+-- Found via a live QA pass: `delegates` carried a direct UPDATE/DELETE grant
+-- for `authenticated` from the original schema, letting anyone with a
+-- Postgres session (e.g. hand-editing a row in Supabase Studio's table
+-- editor, which connects as the table owner and isn't blocked by RLS) flip
+-- a delegate to checked_in without going through check_in_delegate. That
+-- bypasses the check_ins row, the audit log entry, and the staff
+-- attribution entirely, defeating the "log who aided the check-in"
+-- requirement. Every real mutation already goes through a security definer
+-- function (which runs with its own elevated privileges regardless of the
+-- caller's table grants), so the app needs nothing beyond SELECT here.
+revoke update, delete on public.delegates from authenticated;
