@@ -9,7 +9,9 @@ export type StaffSession = {
   session: Session;
   userId: string;
   fullName: string;
-  email: string;
+  username: string;
+  /** Internal Supabase Auth sign-in address, not shown to the user — see resolve_staff_login. */
+  authEmail: string;
   isStaff: boolean;
   isAdmin: boolean;
 };
@@ -32,7 +34,7 @@ export async function resolveStaffSession(): Promise<StaffSessionResult> {
     await Promise.all([
       supabase
         .from("staff_profiles")
-        .select("full_name, email, active")
+        .select("full_name, username, email, active")
         .eq("user_id", session.user.id)
         .maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", session.user.id),
@@ -52,7 +54,8 @@ export async function resolveStaffSession(): Promise<StaffSessionResult> {
       session,
       userId: session.user.id,
       fullName: profile.full_name,
-      email: profile.email,
+      username: profile.username,
+      authEmail: profile.email,
       isStaff,
       isAdmin,
     },

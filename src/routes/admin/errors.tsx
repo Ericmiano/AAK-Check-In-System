@@ -15,6 +15,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/admin/errors")({
   head: () => ({ meta: [{ title: "Errors, AAK Convention 2026" }] }),
+  // Auth lives in localStorage, which the server can't see; SSR-ing this
+  // route would make the guard always look unauthenticated and bounce a
+  // validly signed-in staff member on every hard reload.
+  ssr: false,
   beforeLoad: async ({ location, context }) => ({
     staff: await requireAdmin(location.pathname, context.queryClient),
   }),

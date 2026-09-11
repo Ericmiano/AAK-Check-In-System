@@ -82,7 +82,7 @@ function StaffLoginPage() {
 }
 
 function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,13 +91,31 @@ function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (signInError) {
-      setError("Incorrect email or password.");
-      return;
+    try {
+      const { data: internalEmail, error: resolveError } = await supabase.rpc(
+        "resolve_staff_login",
+        {
+          p_username: username,
+        },
+      );
+      if (resolveError || !internalEmail) {
+        setError("Incorrect username or password.");
+        return;
+      }
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: internalEmail,
+        password,
+      });
+      if (signInError) {
+        setError("Incorrect username or password.");
+        return;
+      }
+      onSignedIn();
+    } catch {
+      setError("Connection problem. Try again.");
+    } finally {
+      setLoading(false);
     }
-    onSignedIn();
   }
 
   return (
@@ -108,13 +126,14 @@ function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
         </Alert>
       )}
       <div className="space-y-1.5">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="username">Username</Label>
         <Input
-          id="email"
-          type="email"
+          id="username"
+          autoCapitalize="none"
+          autoCorrect="off"
           required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
         />
       </div>
       <div className="space-y-1.5">
@@ -141,7 +160,7 @@ function SignInForm({ onSignedIn }: { onSignedIn: () => void }) {
 
 function FirstAdminForm({ onCreated }: { onCreated: () => void }) {
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -151,12 +170,18 @@ function FirstAdminForm({ onCreated }: { onCreated: () => void }) {
     setError(null);
     setLoading(true);
     try {
-      const result = await bootstrapFirstAdmin({ data: { fullName, email, password } });
+      const result = await bootstrapFirstAdmin({ data: { fullName, username, password } });
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: internalEmail } = await supabase.rpc("resolve_staff_login", {
+        p_username: username,
+      });
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: internalEmail ?? "",
+        password,
+      });
       if (signInError) {
         setError("Administrator created. Sign in with your new password.");
         return;
@@ -194,14 +219,18 @@ function FirstAdminForm({ onCreated }: { onCreated: () => void }) {
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="admin_email">Email</Label>
+        <Label htmlFor="admin_username">Username</Label>
         <Input
-          id="admin_email"
-          type="email"
+          id="admin_username"
+          autoCapitalize="none"
+          autoCorrect="off"
           required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
         />
+        <p className="text-xs text-muted-foreground">
+          Letters, numbers, dots, underscores, or hyphens.
+        </p>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="admin_password">Password</Label>

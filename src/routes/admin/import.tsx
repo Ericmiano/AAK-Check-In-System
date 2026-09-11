@@ -4,6 +4,7 @@ import Papa from "papaparse";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, FileUp, Loader2, Trash2 } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
+import { EventPanel } from "@/components/event-panel";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -31,31 +32,49 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/admin/import")({
   head: () => ({ meta: [{ title: "Import delegates, AAK Convention 2026" }] }),
+  // Auth lives in localStorage, which the server can't see; SSR-ing this
+  // route would make the guard always look unauthenticated and bounce a
+  // validly signed-in staff member on every hard reload.
+  ssr: false,
   beforeLoad: async ({ location, context }) => ({
     staff: await requireAdmin(location.pathname, context.queryClient),
   }),
   component: ImportPage,
 });
 
-type CsvRow = { full_name: string; email: string; organization: string; phone: string };
+type CsvRow = {
+  full_name: string;
+  email: string;
+  organization: string;
+  phone: string;
+  photo_consent: string;
+};
 
 const HEADER_ALIASES: Record<string, keyof CsvRow> = {
   full_name: "full_name",
   name: "full_name",
   "full name": "full_name",
+  "booking name": "full_name",
   email: "email",
   "email address": "email",
+  "booking email": "email",
   organization: "organization",
   organisation: "organization",
+  institution: "organization",
   company: "organization",
   phone: "phone",
   "phone number": "phone",
   mobile: "phone",
+  "booking phone": "phone",
+  "photo consent": "photo_consent",
+  "photo consent (sign)": "photo_consent",
+  photo_consent: "photo_consent",
+  consent: "photo_consent",
 };
 
 function normalizeRows(raw: Record<string, string>[]): CsvRow[] {
   return raw.map((row) => {
-    const out: CsvRow = { full_name: "", email: "", organization: "", phone: "" };
+    const out: CsvRow = { full_name: "", email: "", organization: "", phone: "", photo_consent: "" };
     for (const [key, value] of Object.entries(row)) {
       const field = HEADER_ALIASES[key.trim().toLowerCase()];
       if (field) out[field] = (value ?? "").trim();
@@ -64,10 +83,13 @@ function normalizeRows(raw: Record<string, string>[]): CsvRow[] {
   });
 }
 
+// Only full name is truly required — email, organization, and photo consent
+// are frequently blank ahead of time on paper sign-in sheets and get filled
+// in at the door, so a missing value there isn't an error, only an invalid
+// one (a malformed email typed into the sheet) is.
 function rowIssue(row: CsvRow): string | null {
   if (row.full_name.length < 2) return "Missing or invalid full name";
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.email)) return "Missing or invalid email";
-  if (row.organization.length < 1) return "Missing organization";
+  if (row.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.email)) return "Invalid email";
   return null;
 }
 
@@ -136,13 +158,16 @@ function ImportPage() {
   return (
     <StaffShell staff={staff}>
       <div className="max-w-4xl space-y-6">
+        <EventPanel />
+
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="font-display text-2xl text-foreground">Import expected delegates</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Upload a CSV with columns for full name, email, and organization (phone is optional).
-              Existing delegates are matched and updated by email; new ones are added as expected.
-              Up to 5000 rows per file.
+              Upload a CSV with a full name column — email, organization/institution, phone, and
+              photo consent are all optional and can be filled in later. Existing delegates are
+              matched and updated by email (or by name when a row has no email); new ones are
+              added as expected. Up to 5000 rows per file.
             </p>
           </div>
           <AlertDialog>
@@ -232,6 +257,7 @@ function ImportPage() {
                     <TableHead>Full name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Organization</TableHead>
+                    <TableHead>Photo consent</TableHead>
                     <TableHead>Issue</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -243,6 +269,7 @@ function ImportPage() {
                         <TableCell>{row.full_name || "—"}</TableCell>
                         <TableCell>{row.email || "—"}</TableCell>
                         <TableCell>{row.organization || "—"}</TableCell>
+                        <TableCell>{row.photo_consent || "—"}</TableCell>
                         <TableCell className="text-warning">{issue ?? ""}</TableCell>
                       </TableRow>
                     );

@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Pinned explicitly so the deployed Worker's identity never depends on
+  // whoever's git config ran the build. Nitro's cloudflare-module preset
+  // reads this file (see readWranglerConfig in nitro/dist/_presets.mjs) and
+  // merges it ahead of its own auto-generated defaults; `main` and `assets`
+  // are intentionally left out here since Nitro sets those itself based on
+  // the actual build output paths and would warn if this file duplicated them.
+  "name": "aak-convention-check-in"
+}

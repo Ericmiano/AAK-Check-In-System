@@ -2,9 +2,24 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+// Supabase Auth is email-based; staff sign in with a username instead, so
+// each account gets a non-deliverable internal address purely for Auth's
+// own bookkeeping. This domain is never emailed and never shown to anyone.
+const INTERNAL_AUTH_DOMAIN = "staff.aak-checkin.internal";
+
+const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9._-]{3,32}$/, "3-32 characters: letters, numbers, dots, underscores, or hyphens");
+
+function toInternalEmail(username: string): string {
+  return `${username}@${INTERNAL_AUTH_DOMAIN}`;
+}
+
 const bootstrapSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
-  email: z.string().trim().email().max(255),
+  username: usernameSchema,
   password: z.string().min(8).max(72),
 });
 
@@ -18,7 +33,7 @@ export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
   .validator((data: unknown) => bootstrapSchema.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const email = data.email.toLowerCase();
+    const internalEmail = toInternalEmail(data.username);
 
     const { data: exists } = await supabaseAdmin.rpc("admin_exists");
     if (exists) {
@@ -26,10 +41,10 @@ export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
     }
 
     const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: internalEmail,
       password: data.password,
       email_confirm: true,
-      user_metadata: { full_name: data.fullName },
+      user_metadata: { full_name: data.fullName, username: data.username },
     });
     if (createError || !created.user) {
       return { ok: false as const, error: createError?.message ?? "Could not create the account." };
@@ -38,12 +53,16 @@ export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
     const { data: claimed, error: claimError } = await supabaseAdmin.rpc("claim_first_admin", {
       p_user_id: created.user.id,
       p_full_name: data.fullName,
-      p_email: email,
+      p_username: data.username,
+      p_email: internalEmail,
     });
 
     if (claimError || !claimed) {
       await supabaseAdmin.auth.admin.deleteUser(created.user.id);
-      return { ok: false as const, error: "An administrator account already exists." };
+      return {
+        ok: false as const,
+        error: claimError?.message ?? "An administrator account already exists.",
+      };
     }
 
     return { ok: true as const };
@@ -51,7 +70,7 @@ export const bootstrapFirstAdmin = createServerFn({ method: "POST" })
 
 const provisionSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
-  email: z.string().trim().email().max(255),
+  username: usernameSchema,
   password: z.string().min(8).max(72),
   role: z.enum(["staff", "admin"]),
 });
@@ -81,13 +100,13 @@ export const provisionStaff = createServerFn({ method: "POST" })
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const email = data.email.toLowerCase();
+    const internalEmail = toInternalEmail(data.username);
 
     const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: internalEmail,
       password: data.password,
       email_confirm: true,
-      user_metadata: { full_name: data.fullName },
+      user_metadata: { full_name: data.fullName, username: data.username },
     });
     if (createError || !created.user) {
       return { ok: false as const, error: createError?.message ?? "Could not create the account." };
@@ -96,7 +115,8 @@ export const provisionStaff = createServerFn({ method: "POST" })
     const { error: provisionError } = await context.supabase.rpc("admin_provision_staff", {
       p_user_id: created.user.id,
       p_full_name: data.fullName,
-      p_email: email,
+      p_username: data.username,
+      p_email: internalEmail,
       p_role: data.role,
     });
 

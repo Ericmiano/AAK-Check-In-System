@@ -13,6 +13,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/staff/profile")({
   head: () => ({ meta: [{ title: "Your profile, AAK Convention 2026" }] }),
+  // Auth lives in localStorage, which the server can't see; SSR-ing this
+  // route would make the guard always look unauthenticated and bounce a
+  // validly signed-in staff member on every hard reload.
+  ssr: false,
   beforeLoad: async ({ location, context }) => ({
     staff: await requireStaff(location.pathname, context.queryClient),
   }),
@@ -31,7 +35,7 @@ function ProfilePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Signed in as</p>
-              <p className="font-medium text-foreground">{staff.email}</p>
+              <p className="font-medium text-foreground">{staff.username}</p>
             </div>
             <Badge variant={staff.isAdmin ? "default" : "outline"}>
               {staff.isAdmin ? "Administrator" : "Staff"}
@@ -40,7 +44,7 @@ function ProfilePage() {
           <NameForm initialName={staff.fullName} />
         </div>
 
-        <PasswordForm email={staff.email} />
+        <PasswordForm authEmail={staff.authEmail} />
       </div>
     </StaffShell>
   );
@@ -100,7 +104,7 @@ function NameForm({ initialName }: { initialName: string }) {
   );
 }
 
-function PasswordForm({ email }: { email: string }) {
+function PasswordForm({ authEmail }: { authEmail: string }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -125,7 +129,7 @@ function PasswordForm({ email }: { email: string }) {
     setLoading(true);
     try {
       const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email,
+        email: authEmail,
         password: currentPassword,
       });
       if (verifyError) {

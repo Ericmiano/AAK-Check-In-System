@@ -50,6 +50,10 @@ import { provisionStaff } from "@/lib/staff-admin-fn";
 
 export const Route = createFileRoute("/admin/staff")({
   head: () => ({ meta: [{ title: "Staff accounts, AAK Convention 2026" }] }),
+  // Auth lives in localStorage, which the server can't see; SSR-ing this
+  // route would make the guard always look unauthenticated and bounce a
+  // validly signed-in staff member on every hard reload.
+  ssr: false,
   beforeLoad: async ({ location, context }) => ({
     staff: await requireAdmin(location.pathname, context.queryClient),
   }),
@@ -59,7 +63,7 @@ export const Route = createFileRoute("/admin/staff")({
 type StaffRow = {
   user_id: string;
   full_name: string;
-  email: string;
+  username: string;
   active: boolean;
   roles: ("admin" | "staff")[];
 };
@@ -89,7 +93,7 @@ function StaffPage() {
       return (profiles ?? []).map((p) => ({
         user_id: p.user_id,
         full_name: p.full_name,
-        email: p.email,
+        username: p.username,
         active: p.active,
         roles: (roles ?? []).filter((r) => r.user_id === p.user_id).map((r) => r.role),
       }));
@@ -180,7 +184,7 @@ function StaffTableRow({
     <TableRow>
       <TableCell>
         <div className="font-medium text-foreground">{row.full_name}</div>
-        <div className="text-xs text-muted-foreground">{row.email}</div>
+        <div className="text-xs text-muted-foreground">{row.username}</div>
       </TableCell>
       <TableCell>
         <Badge variant={isAdmin ? "default" : "outline"}>
@@ -280,16 +284,16 @@ function ConfirmAction({
 function AddStaffDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState(generatePassword());
   const [role, setRole] = useState<"staff" | "admin">("staff");
   const [error, setError] = useState<string | null>(null);
-  const [created, setCreated] = useState<{ email: string; password: string } | null>(null);
+  const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   function reset() {
     setFullName("");
-    setEmail("");
+    setUsername("");
     setPassword(generatePassword());
     setRole("staff");
     setError(null);
@@ -301,12 +305,12 @@ function AddStaffDialog({ onCreated }: { onCreated: () => void }) {
     setError(null);
     setLoading(true);
     try {
-      const result = await provisionStaff({ data: { fullName, email, password, role } });
+      const result = await provisionStaff({ data: { fullName, username, password, role } });
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      setCreated({ email, password });
+      setCreated({ username, password });
       onCreated();
     } catch {
       setError("Connection problem. Try again.");
@@ -346,7 +350,7 @@ function AddStaffDialog({ onCreated }: { onCreated: () => void }) {
             </Alert>
             <div className="space-y-2 rounded-md border border-border bg-muted p-3 font-mono text-sm">
               <div className="flex items-center justify-between gap-2">
-                <span>{created.email}</span>
+                <span>{created.username}</span>
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span>{created.password}</span>
@@ -382,13 +386,14 @@ function AddStaffDialog({ onCreated }: { onCreated: () => void }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="s_email">Email</Label>
+              <Label htmlFor="s_username">Username</Label>
               <Input
-                id="s_email"
-                type="email"
+                id="s_username"
+                autoCapitalize="none"
+                autoCorrect="off"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">

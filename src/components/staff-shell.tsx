@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  CalendarDays,
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
@@ -15,6 +16,7 @@ import aakLogo from "@/assets/aak-org-logo.png";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { clearStaffSessionCache, type StaffSession } from "@/lib/staff-session";
+import { useActiveEvent } from "@/lib/events-data";
 
 const navLinkClass =
   "inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground";
@@ -23,6 +25,7 @@ const navLinkActiveClass = "bg-accent text-accent-foreground";
 export function StaffShell({ staff, children }: { staff: StaffSession; children: ReactNode }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { data: activeEvent, isLoading: loadingEvent } = useActiveEvent();
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -32,6 +35,11 @@ export function StaffShell({ staff, children }: { staff: StaffSession; children:
 
   return (
     <div className="min-h-screen bg-background">
+      {!loadingEvent && !activeEvent && (
+        <div className="bg-warning px-4 py-2 text-center text-sm font-medium text-warning-foreground">
+          No active event. Create one on the Check-in page to start checking people in.
+        </div>
+      )}
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
@@ -39,6 +47,12 @@ export function StaffShell({ staff, children }: { staff: StaffSession; children:
             <span className="eyebrow rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1">
               Staff mode
             </span>
+            {activeEvent && (
+              <span className="hidden items-center gap-1.5 text-sm text-muted-foreground sm:flex">
+                <CalendarDays className="size-4" aria-hidden="true" />
+                {activeEvent.name}
+              </span>
+            )}
           </div>
           <nav className="flex flex-wrap items-center gap-1">
             <Link

@@ -149,12 +149,14 @@ export type Database = {
           badge_code: string
           badge_token: string
           created_at: string
-          email: string
+          email: string | null
+          event_id: string
           full_name: string
           id: string
           import_batch_id: string | null
-          organization: string
+          organization: string | null
           phone: string | null
+          photo_consent: boolean | null
           source: Database["public"]["Enums"]["delegate_source"]
           status: Database["public"]["Enums"]["delegate_status"]
           updated_at: string
@@ -163,12 +165,14 @@ export type Database = {
           badge_code?: string
           badge_token?: string
           created_at?: string
-          email: string
+          email?: string | null
+          event_id: string
           full_name: string
           id?: string
           import_batch_id?: string | null
-          organization: string
+          organization?: string | null
           phone?: string | null
+          photo_consent?: boolean | null
           source?: Database["public"]["Enums"]["delegate_source"]
           status?: Database["public"]["Enums"]["delegate_status"]
           updated_at?: string
@@ -177,12 +181,14 @@ export type Database = {
           badge_code?: string
           badge_token?: string
           created_at?: string
-          email?: string
+          email?: string | null
+          event_id?: string
           full_name?: string
           id?: string
           import_batch_id?: string | null
-          organization?: string
+          organization?: string | null
           phone?: string | null
+          photo_consent?: boolean | null
           source?: Database["public"]["Enums"]["delegate_source"]
           status?: Database["public"]["Enums"]["delegate_status"]
           updated_at?: string
@@ -193,6 +199,13 @@ export type Database = {
             columns: ["import_batch_id"]
             isOneToOne: false
             referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delegates_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
@@ -241,6 +254,7 @@ export type Database = {
           full_name: string
           updated_at: string
           user_id: string
+          username: string
         }
         Insert: {
           active?: boolean
@@ -249,6 +263,7 @@ export type Database = {
           full_name: string
           updated_at?: string
           user_id: string
+          username: string
         }
         Update: {
           active?: boolean
@@ -257,6 +272,31 @@ export type Database = {
           full_name?: string
           updated_at?: string
           user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -296,6 +336,8 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_create_event: { Args: { p_name: string }; Returns: Json }
+      admin_delete_delegate: { Args: { p_delegate_id: string }; Returns: Json }
       admin_create_kiosk_token: { Args: never; Returns: string }
       admin_exists: { Args: never; Returns: boolean }
       admin_get_active_kiosk_token: { Args: never; Returns: string }
@@ -305,9 +347,11 @@ export type Database = {
           p_full_name: string
           p_role?: Database["public"]["Enums"]["app_role"]
           p_user_id: string
+          p_username: string
         }
         Returns: Json
       }
+      admin_set_active_event: { Args: { p_event_id: string }; Returns: undefined }
       admin_set_staff_role: {
         Args: {
           p_grant: boolean
@@ -330,9 +374,10 @@ export type Database = {
         Returns: Json
       }
       claim_first_admin: {
-        Args: { p_email: string; p_full_name: string; p_user_id: string }
+        Args: { p_email: string; p_full_name: string; p_user_id: string; p_username: string }
         Returns: boolean
       }
+      active_event_id: { Args: never; Returns: string }
       dashboard_stats: { Args: never; Returns: Json }
       generate_badge_code: { Args: never; Returns: string }
       has_role: {
@@ -348,7 +393,17 @@ export type Database = {
       }
       is_active_admin: { Args: { _user_id: string }; Returns: boolean }
       is_active_staff: { Args: { _user_id: string }; Returns: boolean }
-      kiosk_check_in: { Args: { p_email: string; p_token: string }; Returns: Json }
+      kiosk_check_in: {
+        Args: {
+          p_email?: string
+          p_full_name: string
+          p_organization?: string
+          p_photo_consent?: boolean
+          p_token: string
+        }
+        Returns: Json
+      }
+      normalize_name: { Args: { p: string }; Returns: string }
       log_client_error: {
         Args: { p_context?: Json; p_message: string; p_path?: string; p_stack?: string }
         Returns: undefined
@@ -374,6 +429,18 @@ export type Database = {
       public_find_badge: { Args: { p_email: string }; Returns: Json }
       public_get_badge: { Args: { p_token: string }; Returns: Json }
       remove_test_delegates: { Args: never; Returns: number }
+      resolve_staff_login: { Args: { p_username: string }; Returns: string }
+      undo_check_in: { Args: { p_delegate_id: string }; Returns: Json }
+      update_delegate_details: {
+        Args: {
+          p_delegate_id: string
+          p_email?: string
+          p_organization?: string
+          p_phone?: string
+          p_photo_consent?: boolean
+        }
+        Returns: Json
+      }
       update_own_full_name: { Args: { p_full_name: string }; Returns: Json }
       valid_email: { Args: { _email: string }; Returns: boolean }
     }

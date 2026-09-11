@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Loader2, Printer, QrCode, RefreshCw } from "lucide-react";
+import { Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { QrBadge } from "@/components/qr-badge";
+import { EditDelegateDialog } from "@/components/edit-delegate-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,12 +43,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { requireStaff } from "@/lib/staff-session";
-import { useDashboardStats, useDelegates, delegatesToCsv, downloadCsv } from "@/lib/delegates-data";
+import {
+  DELEGATES_KEY,
+  useDashboardStats,
+  useDelegates,
+  delegatesToCsv,
+  downloadCsv,
+  type DelegateRow,
+} from "@/lib/delegates-data";
 import { useCountUp } from "@/hooks/use-count-up";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/staff/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard, AAK Convention 2026" }] }),
+  // Auth lives in localStorage, which the server can't see; SSR-ing this
+  // route would make the guard always look unauthenticated and bounce a
+  // validly signed-in staff member on every hard reload.
+  ssr: false,
   beforeLoad: async ({ location, context }) => ({
     staff: await requireStaff(location.pathname, context.queryClient),
   }),
@@ -63,7 +75,14 @@ function DashboardPage() {
   const [orgFilter, setOrgFilter] = useState<string>("all");
 
   const organizations = useMemo(
-    () => Array.from(new Set((delegates ?? []).map((d) => d.organization))).sort(),
+    () =>
+      Array.from(
+        new Set(
+          (delegates ?? [])
+            .map((d) => d.organization)
+            .filter((org): org is string => !!org),
+        ),
+      ).sort(),
     [delegates],
   );
 
@@ -72,7 +91,10 @@ function DashboardPage() {
     return (delegates ?? []).filter((d) => {
       if (statusFilter !== "all" && d.status !== statusFilter) return false;
       if (orgFilter !== "all" && d.organization !== orgFilter) return false;
-      if (q && !(d.full_name.toLowerCase().includes(q) || d.email.toLowerCase().includes(q)))
+      if (
+        q &&
+        !(d.full_name.toLowerCase().includes(q) || (d.email ?? "").toLowerCase().includes(q))
+      )
         return false;
       return true;
     });
@@ -162,8 +184,10 @@ function DashboardPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Organization</TableHead>
+                  <TableHead>Photo consent</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Checked in</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -171,9 +195,14 @@ function DashboardPage() {
                   <TableRow key={d.id}>
                     <TableCell>
                       <div className="font-medium text-foreground">{d.full_name}</div>
-                      <div className="text-xs text-muted-foreground">{d.email}</div>
+                      <div className="text-xs text-muted-foreground">{d.email ?? "—"}</div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{d.organization}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {d.organization ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {d.photo_consent === true ? "Yes" : d.photo_consent === false ? "No" : "—"}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={d.status === "checked_in" ? "default" : "outline"}>
                         {d.status === "checked_in" ? "Checked in" : "Expected"}
@@ -187,11 +216,17 @@ function DashboardPage() {
                           })
                         : "—"}
                     </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <EditDelegateDialog delegate={d} />
+                        {staff.isAdmin && <DeleteDelegateButton delegate={d} />}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                       No delegates match these filters.
                     </TableCell>
                   </TableRow>
@@ -260,7 +295,8 @@ function KioskQrCard() {
         <p className="eyebrow">Self check-in kiosk</p>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
           Print this QR code and post it at the check-in desk. Delegates scan it with their own
-          phone and enter their email to check themselves in, no staff needed.
+          phone, enter their name, and fill in email, institution, and photo consent themselves
+          to check in — no staff needed.
         </p>
       </div>
       <div className="flex items-center gap-3">
@@ -347,5 +383,65 @@ function MetricCard({
         {suffix}
       </p>
     </div>
+  );
+}
+
+/**
+ * Permanently removes a delegate — for cleaning up duplicate records (the
+ * same person imported twice under slightly different name spellings that
+ * didn't match during a merge). Admin-only and irreversible, unlike the
+ * staff-level edit/undo actions, so it's gated behind a confirmation dialog.
+ */
+function DeleteDelegateButton({ delegate }: { delegate: DelegateRow }) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("admin_delete_delegate", {
+        p_delegate_id: delegate.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    },
+  });
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-destructive hover:text-destructive"
+          disabled={mutation.isPending}
+          aria-label="Delete delegate"
+        >
+          {mutation.isPending ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Trash2 className="size-4" aria-hidden="true" />
+          )}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete {delegate.full_name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This permanently removes their record and check-in history from this event. Use this
+            only for a duplicate or mistaken entry — this cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => mutation.mutate()}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

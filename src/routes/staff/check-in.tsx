@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CloudUpload, Search, UserPlus } from "lucide-react";
+import { CloudUpload, Loader2, RotateCcw, Search, UserPlus } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
+import { EventPanel } from "@/components/event-panel";
+import { EditDelegateDialog } from "@/components/edit-delegate-dialog";
 import { ResultBanner, type CheckInResult } from "@/components/result-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +19,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { requireStaff } from "@/lib/staff-session";
 import { DELEGATES_KEY, useDelegates, type DelegateRow } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +45,10 @@ import {
 
 export const Route = createFileRoute("/staff/check-in")({
   head: () => ({ meta: [{ title: "Check-in, AAK Convention 2026" }] }),
+  // Auth lives in localStorage, which the server can't see; SSR-ing this
+  // route would make the guard always look unauthenticated and bounce a
+  // validly signed-in staff member on every hard reload.
+  ssr: false,
   beforeLoad: async ({ location, context }) => ({
     staff: await requireStaff(location.pathname, context.queryClient),
   }),
@@ -40,12 +57,12 @@ export const Route = createFileRoute("/staff/check-in")({
 
 type CheckInResponse = {
   result: "checked_in" | "already_checked_in" | "not_found";
-  delegate?: { full_name: string; organization: string; badge_code: string };
+  delegate?: { full_name: string; organization: string | null; badge_code: string };
 };
 
 type AddAndCheckInResponse = {
   result: "checked_in" | "already_checked_in" | "duplicate";
-  delegate: { full_name: string; organization: string; badge_code: string };
+  delegate: { full_name: string; organization: string | null; badge_code: string };
 };
 
 async function performCheckIn(
@@ -83,7 +100,7 @@ function CheckInPage() {
   function applySuccess(data: CheckInResponse) {
     queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
     const detail = data.delegate
-      ? `${data.delegate.full_name}, ${data.delegate.organization}`
+      ? [data.delegate.full_name, data.delegate.organization].filter(Boolean).join(", ")
       : undefined;
     if (data.result === "checked_in") {
       successFeedback();
@@ -166,6 +183,23 @@ function CheckInPage() {
     },
   });
 
+  const undoMutation = useMutation({
+    mutationFn: async (delegateId: string) => {
+      const { data, error } = await supabase.rpc("undo_check_in", { p_delegate_id: delegateId });
+      if (error) throw error;
+      return data as unknown as { full_name: string };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      showResult({ kind: "undone", title: "Check-in undone", detail: data.full_name });
+    },
+    onError: (err) => {
+      reportClientError(err, { context: "undo_check_in" });
+      showResult({ kind: "error", title: "Connection problem. Try again." });
+    },
+  });
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q || !delegates) return [];
@@ -173,7 +207,7 @@ function CheckInPage() {
       .filter(
         (d) =>
           d.full_name.toLowerCase().includes(q) ||
-          d.email.toLowerCase().includes(q) ||
+          (d.email ?? "").toLowerCase().includes(q) ||
           d.badge_code.toLowerCase().includes(q),
       )
       .slice(0, 12);
@@ -182,12 +216,14 @@ function CheckInPage() {
   return (
     <StaffShell staff={staff}>
       <div className="mx-auto max-w-xl space-y-6">
-        <div className="flex items-baseline justify-between">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h1 className="font-display text-2xl text-foreground">Staff check-in</h1>
           <span className="tabular text-sm text-muted-foreground">
             {sessionCount} checked in this session
           </span>
         </div>
+
+        <EventPanel compact />
 
         {!isOnline && (
           <div className="flex items-center gap-2 rounded-lg bg-warning-soft px-4 py-2.5 text-sm text-foreground">
@@ -242,6 +278,8 @@ function CheckInPage() {
                   delegate={d}
                   disabled={checkInMutation.isPending}
                   onCheckIn={() => checkInMutation.mutate({ lookup: d.id })}
+                  onUndo={() => undoMutation.mutate(d.id)}
+                  undoing={undoMutation.isPending && undoMutation.variables === d.id}
                 />
               ))}
             </ul>
@@ -272,30 +310,99 @@ function DelegateResultRow({
   delegate,
   disabled,
   onCheckIn,
+  onUndo,
+  undoing,
 }: {
   delegate: DelegateRow;
   disabled: boolean;
   onCheckIn: () => void;
+  onUndo: () => void;
+  undoing: boolean;
 }) {
   const checkedIn = delegate.status === "checked_in";
   return (
-    <li className="flex items-center justify-between gap-3 py-3">
-      <div className="min-w-0">
-        <p className="truncate font-medium text-foreground">{delegate.full_name}</p>
-        <p className="truncate text-sm text-muted-foreground">
-          {delegate.organization} &middot; {delegate.badge_code}
-        </p>
+    <li className="flex flex-wrap items-center justify-between gap-3 py-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <p className="truncate font-medium text-foreground">{delegate.full_name}</p>
+          <span className="shrink-0 text-xs text-muted-foreground">{delegate.badge_code}</span>
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+          <FieldStatus label="Email" value={delegate.email} />
+          <FieldStatus label="Institution" value={delegate.organization} />
+          <FieldStatus label="Phone" value={delegate.phone} />
+          <FieldStatus
+            label="Photo consent"
+            value={
+              delegate.photo_consent === true ? "Yes" : delegate.photo_consent === false ? "No" : null
+            }
+          />
+        </div>
       </div>
-      {checkedIn ? (
-        <Badge variant="secondary" className="shrink-0">
-          Checked in
-        </Badge>
-      ) : (
-        <Button size="sm" disabled={disabled} onClick={onCheckIn}>
-          Check in
-        </Button>
-      )}
+      <div className="flex shrink-0 items-center gap-1">
+        <EditDelegateDialog delegate={delegate} />
+        {checkedIn ? (
+          <>
+            <Badge variant="secondary">Checked in</Badge>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  disabled={undoing}
+                  aria-label="Undo check-in"
+                >
+                  {undoing ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <RotateCcw className="size-4" aria-hidden="true" />
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Undo check-in?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {delegate.full_name} will go back to "expected" and the check-in record will
+                    be removed. Use this only for an accidental check-in.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onUndo}>Undo check-in</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        ) : (
+          <Button size="sm" disabled={disabled} onClick={onCheckIn}>
+            Check in
+          </Button>
+        )}
+      </div>
     </li>
+  );
+}
+
+/**
+ * At-a-glance status for one delegate field in the check-in search results:
+ * shows the value when it's known, or a warning-colored "missing" chip when
+ * it isn't, so staff can tell what still needs filling in (via the edit
+ * dialog) without opening it just to find out.
+ */
+function FieldStatus({ label, value }: { label: string; value: string | null }) {
+  if (value) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        <span className="text-foreground/70">{label}:</span> {value}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded bg-warning-soft px-1.5 py-0.5 text-xs font-medium text-warning">
+      {label} missing
+    </span>
   );
 }
 
@@ -327,7 +434,7 @@ function WalkInDialogContent({ onDone }: { onDone: (result: CheckInResult) => vo
       onDone({
         kind: "checked_in",
         title: "Checked in",
-        detail: `${data.delegate.full_name}, ${data.delegate.organization} (walk-in)`,
+        detail: `${[data.delegate.full_name, data.delegate.organization].filter(Boolean).join(", ")} (walk-in)`,
       });
     },
     onError: (err) => {

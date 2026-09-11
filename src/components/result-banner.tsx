@@ -1,7 +1,13 @@
-import { AlertTriangle, CheckCircle2, CloudUpload, WifiOff, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CloudUpload, RotateCcw, WifiOff, XCircle } from "lucide-react";
 
 export type CheckInResultKind =
-  "checked_in" | "already_checked_in" | "not_found" | "duplicate" | "error" | "queued";
+  | "checked_in"
+  | "already_checked_in"
+  | "not_found"
+  | "duplicate"
+  | "error"
+  | "queued"
+  | "undone";
 
 export type CheckInResult = {
   kind: CheckInResultKind;
@@ -16,6 +22,7 @@ const KIND_STYLES: Record<CheckInResultKind, { className: string; Icon: typeof C
   not_found: { className: "bg-destructive text-destructive-foreground", Icon: XCircle },
   error: { className: "bg-destructive text-destructive-foreground", Icon: WifiOff },
   queued: { className: "bg-info text-info-foreground", Icon: CloudUpload },
+  undone: { className: "bg-info text-info-foreground", Icon: RotateCcw },
 };
 
 /**
