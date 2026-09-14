@@ -157,12 +157,6 @@ function csvEscape(value: string): string {
   return value;
 }
 
-function photoConsentLabel(value: boolean | null | undefined): string {
-  if (value === true) return "yes";
-  if (value === false) return "no";
-  return "";
-}
-
 /**
  * Not every event collects every field ahead of time (e.g. a sign-in sheet
  * with just names, filled in on paper at the door), so a fixed column set
@@ -178,7 +172,6 @@ export function delegatesToCsv(delegates: DelegateRow[]): string {
     { key: "email", get: (d) => d.email ?? "" },
     { key: "organization", get: (d) => d.organization ?? "" },
     { key: "phone", get: (d) => d.phone ?? "" },
-    { key: "photo_consent", get: (d) => photoConsentLabel(d.photo_consent) },
     { key: "status", get: (d) => d.status },
     { key: "badge_code", get: (d) => d.badge_code },
     { key: "source", get: (d) => d.source },

@@ -361,9 +361,15 @@ export type Database = {
         Returns: Json
       }
       admin_update_staff: {
-        Args: { p_active?: boolean; p_full_name?: string; p_user_id: string }
+        Args: {
+          p_active?: boolean
+          p_full_name?: string
+          p_user_id: string
+          p_username?: string
+        }
         Returns: Json
       }
+      admin_delete_staff: { Args: { p_user_id: string }; Returns: Json }
       check_in_delegate: {
         Args: {
           p_device_label?: string

@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ShieldPlus, UserMinus, UserPlus } from "lucide-react";
+import { Copy, ShieldPlus, SquarePen, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/staff-session";
 import { supabase } from "@/integrations/supabase/client";
-import { provisionStaff } from "@/lib/staff-admin-fn";
+import { provisionStaff, deleteStaffAccount } from "@/lib/staff-admin-fn";
 
 export const Route = createFileRoute("/admin/staff")({
   head: () => ({ meta: [{ title: "Staff accounts, AAK Convention 2026" }] }),
@@ -180,6 +180,16 @@ function StaffTableRow({
     onSuccess: onChanged,
   });
 
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteStaff = useMutation({
+    mutationFn: async () => {
+      const result = await deleteStaffAccount({ data: { userId: row.user_id } });
+      if (!result.ok) throw new Error(result.error);
+    },
+    onSuccess: onChanged,
+    onError: (err) => setDeleteError(err instanceof Error ? err.message : "Connection problem."),
+  });
+
   return (
     <TableRow>
       <TableCell>
@@ -244,8 +254,26 @@ function StaffTableRow({
                 onConfirm={() => toggleActive.mutate(false)}
               />
             )}
+            <EditStaffDialog row={row} onSaved={onChanged} />
+            <ConfirmAction
+              trigger={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-9 text-destructive hover:text-destructive"
+                  aria-label="Delete staff account"
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                </Button>
+              }
+              title={`Delete ${row.full_name}?`}
+              description="This permanently removes their account and sign-in access. This cannot be undone."
+              confirmLabel="Delete"
+              onConfirm={() => deleteStaff.mutate()}
+            />
           </div>
         )}
+        {deleteError && <p className="mt-1 text-xs text-destructive">{deleteError}</p>}
       </TableCell>
     </TableRow>
   );
@@ -278,6 +306,97 @@ function ConfirmAction({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+function EditStaffDialog({ row, onSaved }: { row: StaffRow; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [fullName, setFullName] = useState(row.full_name);
+  const [username, setUsername] = useState(row.username);
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("admin_update_staff", {
+        p_user_id: row.user_id,
+        p_full_name: fullName.trim(),
+        p_username: username.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      onSaved();
+      setOpen(false);
+    },
+    onError: (err) =>
+      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setFullName(row.full_name);
+          setUsername(row.username);
+          setError(null);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="icon" className="size-9" aria-label="Edit staff details">
+          <SquarePen className="size-4" aria-hidden="true" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit {row.full_name}</DialogTitle>
+          <DialogDescription>
+            Their existing password is unaffected — use this to correct their name or username.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError(null);
+            mutation.mutate();
+          }}
+          className="space-y-4"
+        >
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="edit_staff_name">Full name</Label>
+            <Input
+              id="edit_staff_name"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit_staff_username">Username</Label>
+            <Input
+              id="edit_staff_username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={mutation.isPending}>
+              Save
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

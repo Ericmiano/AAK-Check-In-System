@@ -184,7 +184,6 @@ function DashboardPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Organization</TableHead>
-                  <TableHead>Photo consent</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Checked in</TableHead>
                   <TableHead className="w-10" />
@@ -199,9 +198,6 @@ function DashboardPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {d.organization ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {d.photo_consent === true ? "Yes" : d.photo_consent === false ? "No" : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant={d.status === "checked_in" ? "default" : "outline"}>
@@ -226,7 +222,7 @@ function DashboardPage() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                       No delegates match these filters.
                     </TableCell>
                   </TableRow>
@@ -295,8 +291,8 @@ function KioskQrCard() {
         <p className="eyebrow">Self check-in kiosk</p>
         <p className="mt-1 max-w-md text-sm text-muted-foreground">
           Print this QR code and post it at the check-in desk. Delegates scan it with their own
-          phone, enter their name, and fill in email, institution, and photo consent themselves
-          to check in — no staff needed.
+          phone, enter their name, and fill in email and institution themselves to check in — no
+          staff needed.
         </p>
       </div>
       <div className="flex items-center gap-3">

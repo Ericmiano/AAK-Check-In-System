@@ -5,7 +5,6 @@ import aakLogo from "@/assets/aak-org-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { reportClientError } from "@/lib/error-log";
 import { useOnlineStatus } from "@/hooks/use-online-status";
@@ -26,7 +25,6 @@ function KioskPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [organization, setOrganization] = useState("");
-  const [photoConsent, setPhotoConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<KioskResult | null>(null);
   const isOnline = useOnlineStatus();
@@ -41,7 +39,6 @@ function KioskPage() {
         p_full_name: fullName,
         ...(email.trim() ? { p_email: email.trim() } : {}),
         ...(organization.trim() ? { p_organization: organization.trim() } : {}),
-        ...(photoConsent ? { p_photo_consent: true } : {}),
       });
       if (error) throw error;
       const payload = data as unknown as {
@@ -60,7 +57,6 @@ function KioskPage() {
         setFullName("");
         setEmail("");
         setOrganization("");
-        setPhotoConsent(false);
       }
     } catch (err) {
       reportClientError(err, { context: "kiosk_check_in" });
@@ -159,14 +155,6 @@ function KioskPage() {
               onChange={(e) => setOrganization(e.target.value)}
             />
           </div>
-          <label className="flex items-start gap-2.5 text-sm text-foreground">
-            <Checkbox
-              checked={photoConsent}
-              onCheckedChange={(v) => setPhotoConsent(v === true)}
-              className="mt-0.5"
-            />
-            Photo consent — I agree to being photographed or filmed at this event.
-          </label>
           <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={loading}>
             {loading && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             Check in

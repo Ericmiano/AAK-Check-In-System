@@ -47,46 +47,94 @@ type CsvRow = {
   email: string;
   organization: string;
   phone: string;
-  photo_consent: string;
 };
 
 const HEADER_ALIASES: Record<string, keyof CsvRow> = {
-  full_name: "full_name",
+  fullname: "full_name",
   name: "full_name",
-  "full name": "full_name",
-  "booking name": "full_name",
+  bookingname: "full_name",
+  ticketname: "full_name",
+  attendeename: "full_name",
+  delegatename: "full_name",
   email: "email",
-  "email address": "email",
-  "booking email": "email",
+  emailaddress: "email",
+  bookingemail: "email",
+  ticketemail: "email",
   organization: "organization",
   organisation: "organization",
   institution: "organization",
   company: "organization",
+  companyname: "organization",
+  employer: "organization",
   phone: "phone",
-  "phone number": "phone",
+  phonenumber: "phone",
   mobile: "phone",
-  "booking phone": "phone",
-  "photo consent": "photo_consent",
-  "photo consent (sign)": "photo_consent",
-  photo_consent: "photo_consent",
-  consent: "photo_consent",
+  mobilenumber: "phone",
+  cell: "phone",
+  bookingphone: "phone",
+  ticketphone: "phone",
+  contactnumber: "phone",
 };
 
-function normalizeRows(raw: Record<string, string>[]): CsvRow[] {
-  return raw.map((row) => {
-    const out: CsvRow = { full_name: "", email: "", organization: "", phone: "", photo_consent: "" };
+// Broader, substring-based fallback for headers that don't exactly match a
+// known alias above (e.g. a column phrased in a way not seen before). Order
+// matters: more specific categories (email/phone/organization) are checked
+// before the generic "name" fallback, since a header like "Company Name"
+// should resolve to organization, not full_name.
+const FALLBACK_RULES: Array<{ test: RegExp; field: keyof CsvRow }> = [
+  { test: /email|mail/, field: "email" },
+  { test: /phone|mobile|contact|tel|cell/, field: "phone" },
+  { test: /organi[sz]|institution|compan|employer/, field: "organization" },
+  { test: /name/, field: "full_name" },
+];
+
+function normalizeHeader(key: string): string {
+  return key.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function matchHeader(rawKey: string): keyof CsvRow | null {
+  const normalized = normalizeHeader(rawKey);
+  if (HEADER_ALIASES[normalized]) return HEADER_ALIASES[normalized];
+  for (const rule of FALLBACK_RULES) {
+    if (rule.test.test(normalized)) return rule.field;
+  }
+  return null;
+}
+
+/**
+ * Maps whatever columns a CSV actually has onto our fixed fields, tolerating
+ * header wording we haven't seen before (a ticketing export, a sign-in
+ * sheet, a plain contact list all phrase things differently). Also reports
+ * which source headers went unrecognized, so a column silently failing to
+ * map is visible instead of just quietly importing as blank.
+ */
+function normalizeRows(raw: Record<string, string>[]): {
+  rows: CsvRow[];
+  unmappedHeaders: string[];
+} {
+  const firstRow = raw[0];
+  const sourceHeaders = firstRow ? Object.keys(firstRow) : [];
+  const unmappedHeaders = sourceHeaders.filter((h) => !matchHeader(h));
+
+  const rows = raw.map((row) => {
+    const out: CsvRow = { full_name: "", email: "", organization: "", phone: "" };
     for (const [key, value] of Object.entries(row)) {
-      const field = HEADER_ALIASES[key.trim().toLowerCase()];
-      if (field) out[field] = (value ?? "").trim();
+      const field = matchHeader(key);
+      // Don't let a later, less-specific column overwrite one already
+      // filled by an earlier, better-matching column (e.g. both "Ticket
+      // Email" and a stray "Contact" column resolving to the same field).
+      if (field && !out[field]) out[field] = (value ?? "").trim();
     }
     return out;
   });
+
+  return { rows, unmappedHeaders };
 }
 
-// Only full name is truly required — email, organization, and photo consent
-// are frequently blank ahead of time on paper sign-in sheets and get filled
-// in at the door, so a missing value there isn't an error, only an invalid
-// one (a malformed email typed into the sheet) is.
+// Only full name is truly required — email, organization, and phone are
+// frequently blank ahead of time on paper sign-in sheets and get filled in
+// at the door, so a missing value there isn't an error, only an invalid one
+// (a malformed email typed into the sheet) is.
 function rowIssue(row: CsvRow): string | null {
   if (row.full_name.length < 2) return "Missing or invalid full name";
   if (row.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.email)) return "Invalid email";
@@ -105,6 +153,7 @@ function ImportPage() {
   const { staff } = Route.useRouteContext();
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<CsvRow[]>([]);
+  const [unmappedHeaders, setUnmappedHeaders] = useState<string[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -149,7 +198,9 @@ function ImportPage() {
           return;
         }
         setFileName(file.name);
-        setRows(normalizeRows(results.data));
+        const { rows: normalized, unmappedHeaders } = normalizeRows(results.data);
+        setRows(normalized);
+        setUnmappedHeaders(unmappedHeaders);
       },
       error: (err) => setParseError(err.message),
     });
@@ -164,10 +215,10 @@ function ImportPage() {
           <div>
             <h1 className="font-display text-2xl text-foreground">Import expected delegates</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Upload a CSV with a full name column — email, organization/institution, phone, and
-              photo consent are all optional and can be filled in later. Existing delegates are
-              matched and updated by email (or by name when a row has no email); new ones are
-              added as expected. Up to 5000 rows per file.
+              Upload a CSV with a full name column — email, organization/institution, and phone
+              are picked up automatically from most common column headings, and can be filled in
+              later if missing. Existing delegates are matched and updated by email (or by name
+              when a row has no email); new ones are added as expected. Up to 5000 rows per file.
             </p>
           </div>
           <AlertDialog>
@@ -228,6 +279,18 @@ function ImportPage() {
           </Alert>
         )}
 
+        {unmappedHeaders.length > 0 && rows.length > 0 && !importMutation.data && (
+          <Alert>
+            <AlertTriangle className="size-4" aria-hidden="true" />
+            <AlertDescription>
+              These columns weren't recognized and won't be imported:{" "}
+              <strong>{unmappedHeaders.join(", ")}</strong>. Everything else (name, email,
+              organization, phone) was picked up below — double-check the preview before
+              importing.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {rows.length > 0 && !importMutation.data && (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -257,7 +320,7 @@ function ImportPage() {
                     <TableHead>Full name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Organization</TableHead>
-                    <TableHead>Photo consent</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead>Issue</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -269,7 +332,7 @@ function ImportPage() {
                         <TableCell>{row.full_name || "—"}</TableCell>
                         <TableCell>{row.email || "—"}</TableCell>
                         <TableCell>{row.organization || "—"}</TableCell>
-                        <TableCell>{row.photo_consent || "—"}</TableCell>
+                        <TableCell>{row.phone || "—"}</TableCell>
                         <TableCell className="text-warning">{issue ?? ""}</TableCell>
                       </TableRow>
                     );

@@ -331,12 +331,6 @@ function DelegateResultRow({
           <FieldStatus label="Email" value={delegate.email} />
           <FieldStatus label="Institution" value={delegate.organization} />
           <FieldStatus label="Phone" value={delegate.phone} />
-          <FieldStatus
-            label="Photo consent"
-            value={
-              delegate.photo_consent === true ? "Yes" : delegate.photo_consent === false ? "No" : null
-            }
-          />
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">

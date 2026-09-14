@@ -14,30 +14,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DELEGATES_KEY, type DelegateRow } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
 
-type ConsentValue = "unknown" | "yes" | "no";
-
-function consentToValue(v: boolean | null): ConsentValue {
-  if (v === true) return "yes";
-  if (v === false) return "no";
-  return "unknown";
-}
-
 /**
  * Fills in the details a name-only import row is missing — email,
- * organization, phone, photo consent — once they're known (typically
- * collected on paper at the check-in desk and typed in afterward). Any
- * active staff member can use this, not just admins, since it's meant to be
- * used at the desk during check-in.
+ * organization, phone — once they're known (typically collected on paper at
+ * the check-in desk and typed in afterward). Any active staff member can
+ * use this, not just admins, since it's meant to be used at the desk during
+ * check-in.
  */
 export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
   const queryClient = useQueryClient();
@@ -45,14 +30,12 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
   const [email, setEmail] = useState(delegate.email ?? "");
   const [organization, setOrganization] = useState(delegate.organization ?? "");
   const [phone, setPhone] = useState(delegate.phone ?? "");
-  const [consent, setConsent] = useState<ConsentValue>(consentToValue(delegate.photo_consent));
   const [error, setError] = useState<string | null>(null);
 
   function resetFromDelegate() {
     setEmail(delegate.email ?? "");
     setOrganization(delegate.organization ?? "");
     setPhone(delegate.phone ?? "");
-    setConsent(consentToValue(delegate.photo_consent));
     setError(null);
   }
 
@@ -63,7 +46,6 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
         p_email: email.trim(),
         p_organization: organization.trim(),
         p_phone: phone.trim(),
-        ...(consent === "unknown" ? {} : { p_photo_consent: consent === "yes" }),
       });
       if (error) throw error;
       return data;
@@ -130,19 +112,6 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
           <div className="space-y-1.5">
             <Label htmlFor="edit_phone">Phone</Label>
             <Input id="edit_phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit_consent">Photo consent (signed)</Label>
-            <Select value={consent} onValueChange={(v) => setConsent(v as ConsentValue)}>
-              <SelectTrigger id="edit_consent">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="unknown">Not recorded</SelectItem>
-                <SelectItem value="yes">Yes, signed</SelectItem>
-                <SelectItem value="no">No / declined</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={mutation.isPending}>

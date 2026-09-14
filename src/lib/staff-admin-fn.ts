@@ -127,3 +127,46 @@ export const provisionStaff = createServerFn({ method: "POST" })
 
     return { ok: true as const };
   });
+
+const deleteStaffSchema = z.object({ userId: z.string().uuid() });
+
+/**
+ * Admin-only: removes a staff account. admin_delete_staff does the audited
+ * DB-side removal (staff_profiles, user_roles) first, attributed to the
+ * acting admin's own session — that alone already blocks sign-in, since
+ * resolve_staff_login can no longer find them. Purging the underlying
+ * Supabase Auth user needs the service role, so it happens here afterward;
+ * if that step fails the account is still fully locked out, just left as a
+ * harmless orphan in Supabase's own user list, so it doesn't roll back the
+ * (already-succeeded) DB removal.
+ */
+export const deleteStaffAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => deleteStaffSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: roleRows } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const { data: profile } = await context.supabase
+      .from("staff_profiles")
+      .select("active")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    const isAdmin = (roleRows ?? []).some((r) => r.role === "admin") && profile?.active !== false;
+    if (!isAdmin) {
+      return { ok: false as const, error: "Not authorized." };
+    }
+
+    const { error: deleteError } = await context.supabase.rpc("admin_delete_staff", {
+      p_user_id: data.userId,
+    });
+    if (deleteError) {
+      return { ok: false as const, error: deleteError.message };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.auth.admin.deleteUser(data.userId);
+
+    return { ok: true as const };
+  });
