@@ -231,20 +231,38 @@ export async function delegatesToXlsx(delegates: DelegateRow[]): Promise<Blob> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Delegates");
 
-  sheet.columns = columns.map((c) => ({
-    header: c.key,
-    key: c.key,
-    width: Math.max(12, c.key.length + 2),
-  }));
-  sheet.getRow(1).font = { bold: true };
-
+  // Cells are written one at a time by explicit row/column position, with
+  // the phone column's text format applied to every cell in that column
+  // (header included) up front — safer than setting a value through
+  // sheet.columns' keyed row-object insert and mutating numFmt afterward,
+  // which left some viewers showing the phone column as blank.
   const phoneColIndex = columns.findIndex((c) => c.key === "phone") + 1;
-  for (const d of rows) {
-    const row = sheet.addRow(Object.fromEntries(columns.map((c) => [c.key, c.get(d)])));
-    if (phoneColIndex > 0) {
-      row.getCell(phoneColIndex).numFmt = "@";
-    }
+  if (phoneColIndex > 0) {
+    sheet.getColumn(phoneColIndex).numFmt = "@";
   }
+
+  const headerRow = sheet.getRow(1);
+  columns.forEach((c, i) => {
+    headerRow.getCell(i + 1).value = c.key;
+  });
+  headerRow.font = { bold: true };
+
+  rows.forEach((d, rowOffset) => {
+    const row = sheet.getRow(rowOffset + 2);
+    columns.forEach((c, i) => {
+      const cell = row.getCell(i + 1);
+      if (i + 1 === phoneColIndex) {
+        cell.numFmt = "@";
+        cell.value = c.get(d) || null;
+      } else {
+        cell.value = c.get(d) || null;
+      }
+    });
+  });
+
+  columns.forEach((c, i) => {
+    sheet.getColumn(i + 1).width = Math.max(12, c.key.length + 2);
+  });
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Blob([buffer], {
