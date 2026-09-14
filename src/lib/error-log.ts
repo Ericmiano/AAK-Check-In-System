@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * Logs an unexpected error to a table admins can check during the live
@@ -7,7 +8,10 @@ import type { Json } from "@/integrations/supabase/types";
  * mention it. Never throws: reporting an error must not cause another one.
  */
 export function reportClientError(error: unknown, context: Record<string, unknown> = {}) {
-  const message = error instanceof Error ? error.message : String(error);
+  // Supabase RPC errors are plain {message, details, hint, code} objects,
+  // not Error instances (see lib/errors.ts) — String(error) on one of those
+  // gives the useless "[object Object]" rather than the real message.
+  const message = errorMessage(error, String(error));
   const stack = error instanceof Error ? error.stack : undefined;
   const path = typeof window !== "undefined" ? window.location.pathname : undefined;
 

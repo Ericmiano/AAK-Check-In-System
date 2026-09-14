@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { requireStaff } from "@/lib/staff-session";
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/staff/profile")({
   head: () => ({ meta: [{ title: "Your profile, AAK Convention 2026" }] }),
@@ -61,8 +62,7 @@ function NameForm({ initialName }: { initialName: string }) {
       if (error) throw error;
     },
     onSuccess: () => setSaved(true),
-    onError: (err) =>
-      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+    onError: (err) => setError(errorMessage(err)),
   });
 
   function handleSubmit(e: FormEvent) {

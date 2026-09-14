@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { DELEGATES_KEY, type DelegateRow } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * Fills in the details a name-only import row is missing — email,
@@ -54,8 +55,7 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
       queryClient.invalidateQueries({ queryKey: DELEGATES_KEY });
       setOpen(false);
     },
-    onError: (err) =>
-      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+    onError: (err) => setError(errorMessage(err)),
   });
 
   function handleSubmit(e: FormEvent) {

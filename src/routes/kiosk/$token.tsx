@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { reportClientError } from "@/lib/error-log";
+import { errorMessage } from "@/lib/errors";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 
 export const Route = createFileRoute("/kiosk/$token")({
@@ -64,9 +65,7 @@ function KioskPage() {
         kind: "error",
         message: !navigator.onLine
           ? "You appear to be offline. Reconnect and try again, or see a staff member."
-          : err instanceof Error
-            ? err.message
-            : "Connection problem. Try again.",
+          : errorMessage(err),
       });
     } finally {
       setLoading(false);

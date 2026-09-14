@@ -29,6 +29,7 @@ import {
 import { requireAdmin } from "@/lib/staff-session";
 import { DELEGATES_KEY } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/admin/import")({
   head: () => ({ meta: [{ title: "Import delegates, AAK Convention 2026" }] }),
@@ -346,9 +347,7 @@ function ImportPage() {
         {importMutation.isError && (
           <Alert variant="destructive">
             <AlertDescription>
-              {importMutation.error instanceof Error
-                ? importMutation.error.message
-                : "Connection problem. Try again."}
+              {errorMessage(importMutation.error)}
             </AlertDescription>
           </Alert>
         )}

@@ -35,6 +35,7 @@ import { DELEGATES_KEY, useDelegates, type DelegateRow } from "@/lib/delegates-d
 import { supabase } from "@/integrations/supabase/client";
 import { successFeedback, noticeFeedback } from "@/lib/feedback";
 import { reportClientError } from "@/lib/error-log";
+import { errorMessage } from "@/lib/errors";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
   enqueueCheckIn,
@@ -179,7 +180,7 @@ function CheckInPage() {
         return;
       }
       reportClientError(err, { context: "check_in_delegate", lookup: vars.lookup });
-      showResult({ kind: "error", title: "Connection problem. Try again." });
+      showResult({ kind: "error", title: errorMessage(err) });
     },
   });
 
@@ -196,7 +197,7 @@ function CheckInPage() {
     },
     onError: (err) => {
       reportClientError(err, { context: "undo_check_in" });
-      showResult({ kind: "error", title: "Connection problem. Try again." });
+      showResult({ kind: "error", title: errorMessage(err) });
     },
   });
 
@@ -433,7 +434,7 @@ function WalkInDialogContent({ onDone }: { onDone: (result: CheckInResult) => vo
     },
     onError: (err) => {
       reportClientError(err, { context: "add_and_check_in" });
-      setError(err instanceof Error ? err.message : "Connection problem. Try again.");
+      setError(errorMessage(err));
     },
   });
 
@@ -462,20 +463,18 @@ function WalkInDialogContent({ onDone }: { onDone: (result: CheckInResult) => vo
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="wi_email">Email</Label>
+          <Label htmlFor="wi_email">Email (optional)</Label>
           <Input
             id="wi_email"
             type="email"
-            required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="wi_org">Organization</Label>
+          <Label htmlFor="wi_org">Organization (optional)</Label>
           <Input
             id="wi_org"
-            required
             value={organization}
             onChange={(e) => setOrganization(e.target.value)}
           />

@@ -47,6 +47,7 @@ import {
 import { requireAdmin } from "@/lib/staff-session";
 import { supabase } from "@/integrations/supabase/client";
 import { provisionStaff, deleteStaffAccount, resetStaffPassword } from "@/lib/staff-admin-fn";
+import { errorMessage } from "@/lib/errors";
 
 export const Route = createFileRoute("/admin/staff")({
   head: () => ({ meta: [{ title: "Staff accounts, AAK Convention 2026" }] }),
@@ -187,7 +188,7 @@ function StaffTableRow({
       if (!result.ok) throw new Error(result.error);
     },
     onSuccess: onChanged,
-    onError: (err) => setDeleteError(err instanceof Error ? err.message : "Connection problem."),
+    onError: (err) => setDeleteError(errorMessage(err)),
   });
 
   return (
@@ -330,7 +331,7 @@ function EditStaffDialog({ row, onSaved }: { row: StaffRow; onSaved: () => void 
       setOpen(false);
     },
     onError: (err) =>
-      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+      setError(errorMessage(err)),
   });
 
   return (
@@ -420,7 +421,7 @@ function ResetPasswordDialog({ row }: { row: StaffRow }) {
     },
     onSuccess: () => setDone(true),
     onError: (err) =>
-      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+      setError(errorMessage(err)),
   });
 
   return (

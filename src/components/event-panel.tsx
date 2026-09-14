@@ -15,6 +15,7 @@ import {
 import { useActiveEvent, useAllEvents } from "@/lib/events-data";
 import { DELEGATES_KEY } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * Create or switch the active event. Any active staff member can do this
@@ -55,7 +56,7 @@ export function EventPanel({ compact = false }: { compact?: boolean }) {
       invalidateEvents();
     },
     onError: (err) =>
-      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+      setError(errorMessage(err)),
   });
 
   const switchEvent = useMutation({
@@ -68,7 +69,7 @@ export function EventPanel({ compact = false }: { compact?: boolean }) {
       invalidateEvents();
     },
     onError: (err) =>
-      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+      setError(errorMessage(err)),
   });
 
   function handleCreate(e: FormEvent) {
