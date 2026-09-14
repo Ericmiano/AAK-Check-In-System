@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { QrBadge } from "@/components/qr-badge";
 import { EventPanel } from "@/components/event-panel";
@@ -43,17 +43,38 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { requireStaff } from "@/lib/staff-session";
 import {
   DELEGATES_KEY,
   useDashboardStats,
   useDelegates,
   delegatesToCsv,
+  delegatesToJson,
+  delegatesToXlsx,
   downloadCsv,
+  downloadJson,
+  downloadBlob,
   type DelegateRow,
 } from "@/lib/delegates-data";
+import { useActiveEvent } from "@/lib/events-data";
 import { useCountUp } from "@/hooks/use-count-up";
 import { supabase } from "@/integrations/supabase/client";
+import { errorMessage } from "@/lib/errors";
+import { reportClientError } from "@/lib/error-log";
+
+function exportFileBase(eventName: string | undefined) {
+  const slug = (eventName ?? "delegates")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "delegates";
+}
 
 export const Route = createFileRoute("/staff/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard, AAK Convention 2026" }] }),
@@ -71,9 +92,28 @@ function DashboardPage() {
   const { staff } = Route.useRouteContext();
   const { data: stats } = useDashboardStats();
   const { data: delegates } = useDelegates();
+  const { data: activeEvent } = useActiveEvent();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "expected" | "checked_in">("all");
   const [orgFilter, setOrgFilter] = useState<string>("all");
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const fileBase = exportFileBase(activeEvent?.name);
+
+  async function handleExportXlsx() {
+    setExportError(null);
+    setExportingXlsx(true);
+    try {
+      const blob = await delegatesToXlsx(delegates ?? []);
+      downloadBlob(`${fileBase}.xlsx`, blob);
+    } catch (err) {
+      reportClientError(err, { context: "export_xlsx" });
+      setExportError(errorMessage(err));
+    } finally {
+      setExportingXlsx(false);
+    }
+  }
 
   const organizations = useMemo(
     () =>
@@ -120,15 +160,41 @@ function DashboardPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-2xl text-foreground">Dashboard</h1>
-          <Button
-            variant="outline"
-            onClick={() =>
-              downloadCsv("aak-convention-2026-delegates.csv", delegatesToCsv(delegates ?? []))
-            }
-          >
-            <Download className="size-4" aria-hidden="true" />
-            Export CSV
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={exportingXlsx}>
+                  {exportingXlsx ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="size-4" aria-hidden="true" />
+                  )}
+                  Export
+                  <ChevronDown className="size-4" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() =>
+                    downloadCsv(`${fileBase}.csv`, delegatesToCsv(delegates ?? []))
+                  }
+                >
+                  CSV — opens in Excel/Sheets
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportXlsx}>
+                  Excel (.xlsx) — for browsing or editing by hand
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    downloadJson(`${fileBase}.json`, delegatesToJson(delegates ?? []))
+                  }
+                >
+                  JSON — for scripts, backups, or re-import elsewhere
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {exportError && <p className="text-xs text-destructive">{exportError}</p>}
+          </div>
         </div>
 
         <EventPanel compact />

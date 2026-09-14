@@ -152,44 +152,115 @@ export function useDashboardStats() {
   });
 }
 
+type ExportColumn = { key: string; get: (d: DelegateRow) => string };
+
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: "full_name", get: (d) => d.full_name },
+  { key: "email", get: (d) => d.email ?? "" },
+  { key: "organization", get: (d) => d.organization ?? "" },
+  { key: "phone", get: (d) => d.phone ?? "" },
+  { key: "status", get: (d) => d.status },
+  { key: "badge_code", get: (d) => d.badge_code },
+  { key: "source", get: (d) => d.source },
+  { key: "checked_in_at", get: (d) => d.checked_in_at ?? "" },
+];
+
+/**
+ * Not every event collects every field ahead of time (e.g. a sign-in sheet
+ * with just names, filled in on paper at the door), so a fixed column set
+ * would export a wall of blanks. Shared by every export format: only
+ * columns with at least one non-empty value across the exported rows are
+ * included, and rows with no name at all are dropped entirely.
+ */
+function activeExportData(delegates: DelegateRow[]) {
+  const rows = delegates.filter((d) => d.full_name.trim() !== "");
+  const columns = EXPORT_COLUMNS.filter((c) => rows.some((d) => c.get(d).trim() !== ""));
+  return { rows, columns };
+}
+
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
 }
 
 /**
- * Not every event collects every field ahead of time (e.g. a sign-in sheet
- * with just names, filled in on paper at the door), so a fixed column set
- * would export a wall of blanks. Instead, only columns with at least one
- * non-empty value across the exported rows are included, and rows with
- * nothing but the always-present identifiers (name/status/badge/source) are
- * left out of the optional columns entirely — the sheet only shows what was
- * actually filled in.
+ * Excel (and Sheets) auto-detects an unquoted, all-digit CSV cell as a
+ * number — a phone number then loses any leading zero and, past ~15
+ * digits, gets rounded and shown in scientific notation. Quoting the cell
+ * doesn't stop this: CSV quotes are a syntax escape, not a type signal, so
+ * Excel's numeric sniffing ignores them. Wrapping the value as a formula
+ * that evaluates to a text literal is the standard workaround — Excel
+ * renders it as plain text with nothing lost, at the cost of a `="…"`
+ * wrapper if the raw file is ever opened outside a spreadsheet (use the
+ * JSON export for that instead).
  */
+function csvPhoneCell(phone: string): string {
+  if (!phone) return "";
+  return csvEscape(`="${phone.replace(/"/g, '""')}"`);
+}
+
 export function delegatesToCsv(delegates: DelegateRow[]): string {
-  const columns: Array<{ key: string; get: (d: DelegateRow) => string }> = [
-    { key: "full_name", get: (d) => d.full_name },
-    { key: "email", get: (d) => d.email ?? "" },
-    { key: "organization", get: (d) => d.organization ?? "" },
-    { key: "phone", get: (d) => d.phone ?? "" },
-    { key: "status", get: (d) => d.status },
-    { key: "badge_code", get: (d) => d.badge_code },
-    { key: "source", get: (d) => d.source },
-    { key: "checked_in_at", get: (d) => d.checked_in_at ?? "" },
-  ];
-
-  const rows = delegates.filter((d) => d.full_name.trim() !== "");
-  const activeColumns = columns.filter((c) => rows.some((d) => c.get(d).trim() !== ""));
-
-  const header = activeColumns.map((c) => c.key);
+  const { rows, columns } = activeExportData(delegates);
+  const header = columns.map((c) => c.key);
   const lines = rows.map((d) =>
-    activeColumns.map((c) => csvEscape(c.get(d))).join(","),
+    columns
+      .map((c) => (c.key === "phone" ? csvPhoneCell(c.get(d)) : csvEscape(c.get(d))))
+      .join(","),
   );
   return [header.join(","), ...lines].join("\n");
 }
 
+/** Plain structured data — no spreadsheet-app quirks, safe for scripts, backups, or re-import elsewhere. */
+export function delegatesToJson(delegates: DelegateRow[]): string {
+  const { rows, columns } = activeExportData(delegates);
+  const records = rows.map((d) =>
+    Object.fromEntries(columns.map((c) => [c.key, c.get(d) || null])),
+  );
+  return JSON.stringify(records, null, 2);
+}
+
+/**
+ * A real .xlsx workbook, so Excel is told the phone column is text at the
+ * cell-format level instead of needing the CSV formula workaround — opens
+ * clean with no extra step, and is the more familiar format for staff who
+ * just want to browse or filter the list by hand.
+ */
+export async function delegatesToXlsx(delegates: DelegateRow[]): Promise<Blob> {
+  const { rows, columns } = activeExportData(delegates);
+  const ExcelJS = (await import("exceljs")).default;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Delegates");
+
+  sheet.columns = columns.map((c) => ({
+    header: c.key,
+    key: c.key,
+    width: Math.max(12, c.key.length + 2),
+  }));
+  sheet.getRow(1).font = { bold: true };
+
+  const phoneColIndex = columns.findIndex((c) => c.key === "phone") + 1;
+  for (const d of rows) {
+    const row = sheet.addRow(Object.fromEntries(columns.map((c) => [c.key, c.get(d)])));
+    if (phoneColIndex > 0) {
+      row.getCell(phoneColIndex).numFmt = "@";
+    }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
 export function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  downloadBlob(filename, new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+}
+
+export function downloadJson(filename: string, json: string) {
+  downloadBlob(filename, new Blob([json], { type: "application/json;charset=utf-8;" }));
+}
+
+export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
