@@ -442,6 +442,7 @@ export type Database = {
         Args: {
           p_delegate_id: string
           p_email?: string
+          p_full_name?: string
           p_organization?: string
           p_phone?: string
           p_photo_consent?: boolean

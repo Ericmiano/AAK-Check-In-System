@@ -21,19 +21,22 @@ import { errorMessage } from "@/lib/errors";
 /**
  * Fills in the details a name-only import row is missing — email,
  * organization, phone — once they're known (typically collected on paper at
- * the check-in desk and typed in afterward). Any active staff member can
- * use this, not just admins, since it's meant to be used at the desk during
- * check-in.
+ * the check-in desk and typed in afterward), and corrects the name itself
+ * when it's wrong (a typo, or a spelling variant left over from merging
+ * duplicate records). Any active staff member can use this, not just
+ * admins, since it's meant to be used at the desk during check-in.
  */
 export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [fullName, setFullName] = useState(delegate.full_name);
   const [email, setEmail] = useState(delegate.email ?? "");
   const [organization, setOrganization] = useState(delegate.organization ?? "");
   const [phone, setPhone] = useState(delegate.phone ?? "");
   const [error, setError] = useState<string | null>(null);
 
   function resetFromDelegate() {
+    setFullName(delegate.full_name);
     setEmail(delegate.email ?? "");
     setOrganization(delegate.organization ?? "");
     setPhone(delegate.phone ?? "");
@@ -44,6 +47,7 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
     mutationFn: async () => {
       const { data, error } = await supabase.rpc("update_delegate_details", {
         p_delegate_id: delegate.id,
+        p_full_name: fullName.trim(),
         p_email: email.trim(),
         p_organization: organization.trim(),
         p_phone: phone.trim(),
@@ -81,8 +85,8 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
         <DialogHeader>
           <DialogTitle>{delegate.full_name}</DialogTitle>
           <DialogDescription>
-            Fill in whatever the sign-in sheet has for this person. Leave a field blank to keep
-            it as-is.
+            Fix their name if it's wrong, and fill in whatever the sign-in sheet has for this
+            person. Leave email, organization, or phone blank to keep them as-is.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -91,6 +95,15 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          <div className="space-y-1.5">
+            <Label htmlFor="edit_full_name">Full name</Label>
+            <Input
+              id="edit_full_name"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="edit_email">Email</Label>
             <Input
