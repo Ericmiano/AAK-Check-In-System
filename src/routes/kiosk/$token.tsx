@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, Clock, CloudUpload, Loader2, XCircle } from "lucide-react";
 import aakLogo from "@/assets/aak-org-logo.png";
@@ -15,6 +15,38 @@ export const Route = createFileRoute("/kiosk/$token")({
   component: KioskPage,
 });
 
+/**
+ * Names the event this specific kiosk code checks people into. Without
+ * this, the page showed generic static branding no matter which event was
+ * actually active, so a real delegate under a DIFFERENT (currently
+ * inactive) event just failed with a confusing "no matching registration"
+ * — nothing on screen let anyone notice the mismatch before trying.
+ */
+function useKioskEventName(token: string) {
+  const [eventName, setEventName] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.rpc("kiosk_active_event_name", { p_token: token }).then(
+      ({ data }) => {
+        if (!cancelled) {
+          setEventName(data ?? null);
+          setLoaded(true);
+        }
+      },
+      () => {
+        if (!cancelled) setLoaded(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  return { eventName, loaded };
+}
+
 type KioskResult =
   | { kind: "checked_in"; fullName: string; organization: string }
   | { kind: "already_checked_in"; fullName: string; organization: string }
@@ -23,6 +55,7 @@ type KioskResult =
 
 function KioskPage() {
   const { token } = Route.useParams();
+  const { eventName, loaded: eventNameLoaded } = useKioskEventName(token);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [organization, setOrganization] = useState("");
@@ -75,11 +108,20 @@ function KioskPage() {
   return (
     <div className="flex min-h-screen flex-col items-center bg-background px-5 py-10">
       <img src={aakLogo} alt="AAK" className="h-12 w-auto" />
-      <p className="eyebrow mt-4">AAK Annual Convention 2026</p>
+      <p className="eyebrow mt-4">
+        {eventNameLoaded && eventName ? eventName : "AAK Annual Convention 2026"}
+      </p>
       <h1 className="mt-2 text-center font-display text-3xl text-foreground">Check in</h1>
       <p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
         Enter your name exactly as it was registered, then fill in whatever else is missing.
       </p>
+      {eventNameLoaded && !eventName && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg bg-warning-soft px-4 py-2.5 text-sm text-foreground">
+          <XCircle className="size-4 shrink-0" aria-hidden="true" />
+          This check-in code isn't linked to an active event right now. Please see a staff
+          member.
+        </div>
+      )}
 
       <div className="mt-8 w-full max-w-sm">
         {!isOnline && (

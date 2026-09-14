@@ -411,6 +411,7 @@ export type Database = {
         Returns: Json
       }
       normalize_name: { Args: { p: string }; Returns: string }
+      kiosk_active_event_name: { Args: { p_token: string }; Returns: string }
       log_client_error: {
         Args: { p_context?: Json; p_message: string; p_path?: string; p_stack?: string }
         Returns: undefined
