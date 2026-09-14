@@ -170,3 +170,46 @@ export const deleteStaffAccount = createServerFn({ method: "POST" })
 
     return { ok: true as const };
   });
+
+const resetPasswordSchema = z.object({
+  userId: z.string().uuid(),
+  password: z.string().min(8).max(72),
+});
+
+/**
+ * Admin-only: sets a new password for a staff member who's locked out.
+ * Staff accounts sign in via a synthetic internal email with nowhere real
+ * to deliver a reset link, so this is the realistic "forgot password" path
+ * here — an admin sets a fresh temporary password directly and hands it to
+ * them the same way a new account's password is shared.
+ */
+export const resetStaffPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => resetPasswordSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: roleRows } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const { data: profile } = await context.supabase
+      .from("staff_profiles")
+      .select("active")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    const isAdmin = (roleRows ?? []).some((r) => r.role === "admin") && profile?.active !== false;
+    if (!isAdmin) {
+      return { ok: false as const, error: "Not authorized." };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
+      password: data.password,
+    });
+    if (updateError) {
+      return { ok: false as const, error: updateError.message };
+    }
+
+    await context.supabase.rpc("admin_log_password_reset", { p_user_id: data.userId });
+
+    return { ok: true as const };
+  });

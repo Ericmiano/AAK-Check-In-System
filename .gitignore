@@ -23,6 +23,9 @@ dist-ssr
 # Supabase CLI local link state
 supabase/.temp/
 
+# Event photos/media - not part of the app, kept out of the code repo
+biennale media/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

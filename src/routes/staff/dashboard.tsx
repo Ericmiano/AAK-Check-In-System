@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { QrBadge } from "@/components/qr-badge";
+import { EventPanel } from "@/components/event-panel";
 import { EditDelegateDialog } from "@/components/edit-delegate-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -129,6 +130,8 @@ function DashboardPage() {
             Export CSV
           </Button>
         </div>
+
+        <EventPanel compact />
 
         {staff.isAdmin && <KioskQrCard />}
 

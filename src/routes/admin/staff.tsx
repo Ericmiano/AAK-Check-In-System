@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, ShieldPlus, SquarePen, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Copy, KeyRound, ShieldPlus, SquarePen, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/table";
 import { requireAdmin } from "@/lib/staff-session";
 import { supabase } from "@/integrations/supabase/client";
-import { provisionStaff, deleteStaffAccount } from "@/lib/staff-admin-fn";
+import { provisionStaff, deleteStaffAccount, resetStaffPassword } from "@/lib/staff-admin-fn";
 
 export const Route = createFileRoute("/admin/staff")({
   head: () => ({ meta: [{ title: "Staff accounts, AAK Convention 2026" }] }),
@@ -255,6 +255,7 @@ function StaffTableRow({
               />
             )}
             <EditStaffDialog row={row} onSaved={onChanged} />
+            <ResetPasswordDialog row={row} />
             <ConfirmAction
               trigger={
                 <Button
@@ -395,6 +396,117 @@ function EditStaffDialog({ row, onSaved }: { row: StaffRow; onSaved: () => void 
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The realistic "forgot password" path for staff: their account signs in
+ * via a synthetic internal email with nowhere real to send a reset link,
+ * so an admin sets a fresh temporary password directly here instead, and
+ * hands it to them the same way a brand-new account's password is shared.
+ */
+function ResetPasswordDialog({ row }: { row: StaffRow }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState(generatePassword());
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const result = await resetStaffPassword({ data: { userId: row.user_id, password } });
+      if (!result.ok) throw new Error(result.error);
+    },
+    onSuccess: () => setDone(true),
+    onError: (err) =>
+      setError(err instanceof Error ? err.message : "Connection problem. Try again."),
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setPassword(generatePassword());
+          setError(null);
+          setDone(false);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="icon" className="size-9" aria-label="Reset password">
+          <KeyRound className="size-4" aria-hidden="true" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reset password for {row.full_name}</DialogTitle>
+          <DialogDescription>
+            Sets a new temporary password immediately, signing them out of any existing session.
+          </DialogDescription>
+        </DialogHeader>
+
+        {done ? (
+          <div className="space-y-4">
+            <Alert>
+              <AlertDescription>
+                Password reset. Share this new password securely, it will not be shown again.
+              </AlertDescription>
+            </Alert>
+            <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted p-3 font-mono text-sm">
+              <span>{password}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => navigator.clipboard?.writeText(password)}
+                aria-label="Copy password"
+              >
+                <Copy className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
+            <Button className="w-full" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setError(null);
+              mutation.mutate();
+            }}
+            className="space-y-4"
+          >
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <div className="space-y-1.5">
+              <Label htmlFor="reset_password">New temporary password</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="reset_password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Button type="button" variant="outline" onClick={() => setPassword(generatePassword())}>
+                  Generate
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={mutation.isPending}>
+                Reset password
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

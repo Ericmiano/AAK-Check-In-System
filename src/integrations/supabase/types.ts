@@ -340,6 +340,7 @@ export type Database = {
       admin_delete_delegate: { Args: { p_delegate_id: string }; Returns: Json }
       admin_create_kiosk_token: { Args: never; Returns: string }
       admin_exists: { Args: never; Returns: boolean }
+      admin_log_password_reset: { Args: { p_user_id: string }; Returns: undefined }
       admin_get_active_kiosk_token: { Args: never; Returns: string }
       admin_provision_staff: {
         Args: {
