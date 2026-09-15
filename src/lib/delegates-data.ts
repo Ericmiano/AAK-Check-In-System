@@ -19,31 +19,32 @@ export type DelegateRow = Tables<"delegates"> & {
 export const DELEGATES_KEY = ["delegates-raw"] as const;
 const STAFF_NAMES_KEY = ["staff-names"] as const;
 
-type RawCheckIn = Pick<
-  Tables<"check_ins">,
-  "delegate_id" | "checked_in_at" | "checked_in_by" | "method"
->;
+type EmbeddedCheckIn = Pick<Tables<"check_ins">, "checked_in_at" | "checked_in_by" | "method">;
 
+type DelegateWithCheckIn = Tables<"delegates"> & {
+  // check_ins.delegate_id is unique, so this is a to-one relationship, but
+  // PostgREST's embed shape (bare object vs single-item array) has varied
+  // across versions, so both are handled where this is read.
+  check_ins: EmbeddedCheckIn[] | EmbeddedCheckIn | null;
+};
+
+/**
+ * One query instead of two: check_ins has no event_id of its own, so
+ * fetching it separately meant pulling every check-in from every event
+ * this system has ever run, every time the roster loads — a fetch that
+ * only grows as more events pile up, even though only this event's rows
+ * are ever used. Embedding check_ins through its FK to delegates lets
+ * PostgREST scope it to the same event_id filter in a single round trip.
+ */
 async function fetchDelegatesRaw(eventId: string) {
-  const [{ data: delegates, error: delegatesError }, { data: checkIns, error: checkInsError }] =
-    await Promise.all([
-      supabase
-        .from("delegates")
-        .select("*")
-        .eq("event_id", eventId)
-        .order("full_name", { ascending: true }),
-      // Not filtered by event: check_ins has no event_id of its own, and a
-      // row here only ever gets matched against a delegate_id already in
-      // this event's roster below, so rows from other events are just
-      // unused, not a correctness issue.
-      supabase
-        .from("check_ins")
-        .select("delegate_id, checked_in_at, checked_in_by, method")
-        .returns<RawCheckIn[]>(),
-    ]);
-  if (delegatesError) throw delegatesError;
-  if (checkInsError) throw checkInsError;
-  return { delegates: delegates ?? [], checkIns: checkIns ?? [] };
+  const { data, error } = await supabase
+    .from("delegates")
+    .select("*, check_ins(checked_in_at, checked_in_by, method)")
+    .eq("event_id", eventId)
+    .order("full_name", { ascending: true })
+    .returns<DelegateWithCheckIn[]>();
+  if (error) throw error;
+  return data ?? [];
 }
 
 /**
@@ -96,9 +97,8 @@ export function useDelegates() {
 
   const data = useMemo<DelegateRow[] | undefined>(() => {
     if (!rawQuery.data) return undefined;
-    const byDelegate = new Map(rawQuery.data.checkIns.map((c) => [c.delegate_id, c]));
-    return rawQuery.data.delegates.map((d) => {
-      const checkIn = byDelegate.get(d.id);
+    return rawQuery.data.map(({ check_ins, ...d }) => {
+      const checkIn = Array.isArray(check_ins) ? check_ins[0] : check_ins;
       const staffName = checkIn?.checked_in_by ? staffNames?.get(checkIn.checked_in_by) : undefined;
       const attribution = !checkIn
         ? null
