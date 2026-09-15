@@ -74,20 +74,31 @@ export function useDelegates() {
   const eventId = activeEvent?.id;
   const { data: staffNames } = useStaffNames();
 
+  // Filtered to the active event on both tables (check_ins only got an
+  // event_id of its own recently) so a check-in or roster change in a
+  // *different* event no longer triggers a pointless refetch here — and
+  // re-subscribes whenever the active event changes, since the filter
+  // value itself needs to change.
   useEffect(() => {
+    if (!eventId) return;
+    const filter = `event_id=eq.${eventId}`;
     const channel = supabase
-      .channel("delegates-and-check-ins")
-      .on("postgres_changes", { event: "*", schema: "public", table: "delegates" }, () =>
-        queryClient.invalidateQueries({ queryKey: DELEGATES_KEY }),
+      .channel(`delegates-and-check-ins-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "delegates", filter },
+        () => queryClient.invalidateQueries({ queryKey: DELEGATES_KEY }),
       )
-      .on("postgres_changes", { event: "*", schema: "public", table: "check_ins" }, () =>
-        queryClient.invalidateQueries({ queryKey: DELEGATES_KEY }),
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "check_ins", filter },
+        () => queryClient.invalidateQueries({ queryKey: DELEGATES_KEY }),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, eventId]);
 
   const rawQuery = useQuery({
     queryKey: [...DELEGATES_KEY, eventId],
@@ -126,29 +137,47 @@ export type DashboardStats = {
 /** Server-computed counts (expected, checked in, walk-ins), kept fresh via realtime. */
 export function useDashboardStats() {
   const queryClient = useQueryClient();
+  const { data: activeEvent } = useActiveEvent();
+  const eventId = activeEvent?.id;
 
+  // Same event-scoped filtering as useDelegates — otherwise check-in
+  // activity in any other event triggers a stats refetch here too.
   useEffect(() => {
+    if (!eventId) return;
+    const filter = `event_id=eq.${eventId}`;
     const channel = supabase
-      .channel("dashboard-stats")
-      .on("postgres_changes", { event: "*", schema: "public", table: "delegates" }, () =>
-        queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }),
+      .channel(`dashboard-stats-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "delegates", filter },
+        () => queryClient.invalidateQueries({ queryKey: ["dashboard-stats", eventId] }),
       )
-      .on("postgres_changes", { event: "*", schema: "public", table: "check_ins" }, () =>
-        queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }),
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "check_ins", filter },
+        () => queryClient.invalidateQueries({ queryKey: ["dashboard-stats", eventId] }),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient]);
+  }, [queryClient, eventId]);
 
+  // Keyed by eventId (not just "dashboard-stats") so switching the active
+  // event — including learning about a switch someone else made, via
+  // useActiveEvent's own realtime subscription — refetches on its own the
+  // moment eventId changes, the same way useDelegates already does. Without
+  // this, a device that didn't perform the switch kept showing the
+  // previous event's numbers until unrelated check-in activity happened to
+  // invalidate the (until-then event-unaware) query key.
   return useQuery({
-    queryKey: ["dashboard-stats"],
+    queryKey: ["dashboard-stats", eventId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("dashboard_stats");
       if (error) throw error;
       return data as unknown as DashboardStats;
     },
+    enabled: !!eventId,
   });
 }
 

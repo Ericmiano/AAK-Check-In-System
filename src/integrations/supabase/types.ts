@@ -112,6 +112,7 @@ export type Database = {
           checked_in_by: string | null
           delegate_id: string
           device_label: string | null
+          event_id: string
           id: string
           method: Database["public"]["Enums"]["check_in_method"]
           notes: string | null
@@ -121,6 +122,7 @@ export type Database = {
           checked_in_by?: string | null
           delegate_id: string
           device_label?: string | null
+          event_id: string
           id?: string
           method: Database["public"]["Enums"]["check_in_method"]
           notes?: string | null
@@ -130,6 +132,7 @@ export type Database = {
           checked_in_by?: string | null
           delegate_id?: string
           device_label?: string | null
+          event_id?: string
           id?: string
           method?: Database["public"]["Enums"]["check_in_method"]
           notes?: string | null
@@ -140,6 +143,13 @@ export type Database = {
             columns: ["delegate_id"]
             isOneToOne: true
             referencedRelation: "delegates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "check_ins_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
