@@ -51,6 +51,7 @@ type KioskResult =
   | { kind: "checked_in"; fullName: string; organization: string }
   | { kind: "already_checked_in"; fullName: string; organization: string }
   | { kind: "not_found" }
+  | { kind: "needs_details"; missingEmail: boolean; missingPhone: boolean }
   | { kind: "registered"; fullName: string }
   | { kind: "error"; message: string };
 
@@ -59,6 +60,7 @@ function KioskPage() {
   const { eventName, loaded: eventNameLoaded } = useKioskEventName(token);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [organization, setOrganization] = useState("");
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -75,15 +77,28 @@ function KioskPage() {
         p_full_name: fullName,
         ...(email.trim() ? { p_email: email.trim() } : {}),
         ...(organization.trim() ? { p_organization: organization.trim() } : {}),
+        ...(phone.trim() ? { p_phone: phone.trim() } : {}),
       });
       if (error) throw error;
       const payload = data as unknown as {
-        result: "checked_in" | "already_checked_in" | "not_found";
+        result: "checked_in" | "already_checked_in" | "not_found" | "needs_details";
         full_name?: string;
         organization?: string;
+        missing_email?: boolean;
+        missing_phone?: boolean;
       };
       if (payload.result === "not_found") {
         setResult({ kind: "not_found" });
+      } else if (payload.result === "needs_details") {
+        // A name match exists, but the record on file is still missing
+        // email and/or phone — hold off on the check-in until those are
+        // filled in, since a name by itself isn't enough to tell two
+        // same-named delegates apart later.
+        setResult({
+          kind: "needs_details",
+          missingEmail: payload.missing_email ?? false,
+          missingPhone: payload.missing_phone ?? false,
+        });
       } else {
         setResult({
           kind: payload.result,
@@ -92,6 +107,7 @@ function KioskPage() {
         });
         setFullName("");
         setEmail("");
+        setPhone("");
         setOrganization("");
       }
     } catch (err) {
@@ -107,6 +123,10 @@ function KioskPage() {
     }
   }
 
+  const needsDetails = result?.kind === "needs_details" ? result : null;
+  const emailRequired = needsDetails?.missingEmail ?? false;
+  const phoneRequired = needsDetails?.missingPhone ?? false;
+
   // Not on any list — either a genuine walk-in, or a real registrant whose
   // name just didn't match. Either way they can register themselves right
   // here instead of queueing for a staff member to type it in, but this
@@ -121,7 +141,8 @@ function KioskPage() {
       const { data, error } = await supabase.rpc("kiosk_self_register", {
         p_token: token,
         p_full_name: fullName,
-        ...(email.trim() ? { p_email: email.trim() } : {}),
+        p_email: email.trim(),
+        p_phone: phone.trim(),
         ...(organization.trim() ? { p_organization: organization.trim() } : {}),
       });
       if (error) throw error;
@@ -129,6 +150,7 @@ function KioskPage() {
       setResult({ kind: "registered", fullName: payload.full_name });
       setFullName("");
       setEmail("");
+      setPhone("");
       setOrganization("");
     } catch (err) {
       reportClientError(err, { context: "kiosk_self_register" });
@@ -196,7 +218,7 @@ function KioskPage() {
               type="button"
               variant="secondary"
               className="mt-2 h-11 w-full text-base"
-              disabled={registering || !fullName.trim()}
+              disabled={registering || !fullName.trim() || !email.trim() || !phone.trim()}
               onClick={handleRegister}
             >
               {registering ? (
@@ -206,6 +228,22 @@ function KioskPage() {
               )}
               Register as a new attendee
             </Button>
+          </div>
+        )}
+        {result?.kind === "needs_details" && (
+          <div className="animate-banner-in flex flex-col items-center gap-2 rounded-xl bg-warning p-6 text-center text-warning-foreground">
+            <UserPlus className="size-10" aria-hidden="true" />
+            <p className="font-display text-xl">Almost there</p>
+            <p className="text-sm opacity-90">
+              We found you, but your registration is missing{" "}
+              {needsDetails?.missingEmail && needsDetails?.missingPhone
+                ? "an email and phone number"
+                : needsDetails?.missingEmail
+                  ? "an email address"
+                  : "a phone number"}
+              . Please add {needsDetails?.missingEmail && needsDetails?.missingPhone ? "them" : "it"}{" "}
+              below and check in again.
+            </p>
           </div>
         )}
         {result?.kind === "registered" && (
@@ -240,13 +278,29 @@ function KioskPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="kiosk_email">Email</Label>
+            <Label htmlFor="kiosk_email">
+              Email{(result?.kind === "not_found" || emailRequired) && " *"}
+            </Label>
             <Input
               id="kiosk_email"
               type="email"
+              required={result?.kind === "not_found" || emailRequired}
               className="h-12 text-base"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="kiosk_phone">
+              Phone{(result?.kind === "not_found" || phoneRequired) && " *"}
+            </Label>
+            <Input
+              id="kiosk_phone"
+              type="tel"
+              required={result?.kind === "not_found" || phoneRequired}
+              className="h-12 text-base"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
@@ -258,7 +312,16 @@ function KioskPage() {
               onChange={(e) => setOrganization(e.target.value)}
             />
           </div>
-          <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={loading}>
+          <Button
+            type="submit"
+            size="lg"
+            className="h-12 w-full text-base"
+            disabled={
+              loading ||
+              (emailRequired && !email.trim()) ||
+              (phoneRequired && !phone.trim())
+            }
+          >
             {loading && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             Check in
           </Button>

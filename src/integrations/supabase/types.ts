@@ -415,6 +415,7 @@ export type Database = {
           p_email?: string
           p_full_name: string
           p_organization?: string
+          p_phone?: string
           p_photo_consent?: boolean
           p_token: string
         }
@@ -427,11 +428,13 @@ export type Database = {
           p_email?: string
           p_full_name: string
           p_organization?: string
+          p_phone?: string
           p_photo_consent?: boolean
           p_token: string
         }
         Returns: Json
       }
+      valid_phone: { Args: { _phone: string }; Returns: boolean }
       log_client_error: {
         Args: { p_context?: Json; p_message: string; p_path?: string; p_stack?: string }
         Returns: undefined
