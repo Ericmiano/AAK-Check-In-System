@@ -94,7 +94,9 @@ function DashboardPage() {
   const { data: delegates } = useDelegates();
   const { data: activeEvent } = useActiveEvent();
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "expected" | "checked_in">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "expected" | "pending" | "checked_in">(
+    "all",
+  );
   const [orgFilter, setOrgFilter] = useState<string>("all");
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -225,6 +227,7 @@ function DashboardPage() {
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="expected">Expected</SelectItem>
+              <SelectItem value="pending">Self-registered</SelectItem>
               <SelectItem value="checked_in">Checked in</SelectItem>
             </SelectContent>
           </Select>
@@ -269,8 +272,20 @@ function DashboardPage() {
                       {d.organization ?? "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={d.status === "checked_in" ? "default" : "outline"}>
-                        {d.status === "checked_in" ? "Checked in" : "Expected"}
+                      <Badge
+                        variant={
+                          d.status === "checked_in"
+                            ? "default"
+                            : d.status === "pending"
+                              ? "secondary"
+                              : "outline"
+                        }
+                      >
+                        {d.status === "checked_in"
+                          ? "Checked in"
+                          : d.status === "pending"
+                            ? "Self-registered"
+                            : "Expected"}
                       </Badge>
                     </TableCell>
                     <TableCell className="tabular text-muted-foreground">

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock, CloudUpload, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, CloudUpload, Loader2, UserPlus, XCircle } from "lucide-react";
 import aakLogo from "@/assets/aak-org-logo.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ type KioskResult =
   | { kind: "checked_in"; fullName: string; organization: string }
   | { kind: "already_checked_in"; fullName: string; organization: string }
   | { kind: "not_found" }
+  | { kind: "registered"; fullName: string }
   | { kind: "error"; message: string };
 
 function KioskPage() {
@@ -60,6 +61,7 @@ function KioskPage() {
   const [email, setEmail] = useState("");
   const [organization, setOrganization] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registering, setRegistering] = useState(false);
   const [result, setResult] = useState<KioskResult | null>(null);
   const isOnline = useOnlineStatus();
 
@@ -102,6 +104,42 @@ function KioskPage() {
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Not on any list — either a genuine walk-in, or a real registrant whose
+  // name just didn't match. Either way they can register themselves right
+  // here instead of queueing for a staff member to type it in, but this
+  // never checks them in directly: it lands as 'pending', and a staff
+  // member still confirms them in person to hand over an actual badge —
+  // which is also where a paid event's staff can ask to see proof of
+  // payment before finalizing anything.
+  async function handleRegister() {
+    setRegistering(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.rpc("kiosk_self_register", {
+        p_token: token,
+        p_full_name: fullName,
+        ...(email.trim() ? { p_email: email.trim() } : {}),
+        ...(organization.trim() ? { p_organization: organization.trim() } : {}),
+      });
+      if (error) throw error;
+      const payload = data as unknown as { result: "registered"; full_name: string };
+      setResult({ kind: "registered", fullName: payload.full_name });
+      setFullName("");
+      setEmail("");
+      setOrganization("");
+    } catch (err) {
+      reportClientError(err, { context: "kiosk_self_register" });
+      setResult({
+        kind: "error",
+        message: !navigator.onLine
+          ? "You appear to be offline. Reconnect and try again, or see a staff member."
+          : errorMessage(err),
+      });
+    } finally {
+      setRegistering(false);
     }
   }
 
@@ -151,8 +189,32 @@ function KioskPage() {
             <XCircle className="size-10" aria-hidden="true" />
             <p className="font-display text-xl">No matching registration</p>
             <p className="text-sm opacity-90">
-              We couldn't find that name on the list. Please see a staff member at the desk for
-              help.
+              We couldn't find that name on the list. You can register below, or see a staff
+              member at the desk for help.
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-2 h-11 w-full text-base"
+              disabled={registering || !fullName.trim()}
+              onClick={handleRegister}
+            >
+              {registering ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <UserPlus className="size-4" aria-hidden="true" />
+              )}
+              Register as a new attendee
+            </Button>
+          </div>
+        )}
+        {result?.kind === "registered" && (
+          <div className="animate-banner-in flex flex-col items-center gap-2 rounded-xl bg-info p-6 text-center text-info-foreground">
+            <CheckCircle2 className="size-10" aria-hidden="true" />
+            <p className="font-display text-xl">You're registered</p>
+            <p className="text-sm opacity-90">
+              Welcome, {result.fullName}. Please see the check-in desk to confirm and collect
+              your badge.
             </p>
           </div>
         )}

@@ -422,6 +422,16 @@ export type Database = {
       }
       normalize_name: { Args: { p: string }; Returns: string }
       kiosk_active_event_name: { Args: { p_token: string }; Returns: string }
+      kiosk_self_register: {
+        Args: {
+          p_email?: string
+          p_full_name: string
+          p_organization?: string
+          p_photo_consent?: boolean
+          p_token: string
+        }
+        Returns: Json
+      }
       log_client_error: {
         Args: { p_context?: Json; p_message: string; p_path?: string; p_stack?: string }
         Returns: undefined
@@ -466,8 +476,8 @@ export type Database = {
     Enums: {
       app_role: "admin" | "staff"
       check_in_method: "qr" | "search" | "walk_in" | "kiosk"
-      delegate_source: "import" | "public" | "walk_in"
-      delegate_status: "expected" | "checked_in"
+      delegate_source: "import" | "public" | "walk_in" | "kiosk"
+      delegate_status: "expected" | "checked_in" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -600,8 +610,8 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "staff"],
       check_in_method: ["qr", "search", "walk_in", "kiosk"],
-      delegate_source: ["import", "public", "walk_in"],
-      delegate_status: ["expected", "checked_in"],
+      delegate_source: ["import", "public", "walk_in", "kiosk"],
+      delegate_status: ["expected", "checked_in", "pending"],
     },
   },
 } as const

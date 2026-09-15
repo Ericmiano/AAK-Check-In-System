@@ -321,12 +321,18 @@ function DelegateResultRow({
   undoing: boolean;
 }) {
   const checkedIn = delegate.status === "checked_in";
+  const pending = delegate.status === "pending";
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
           <p className="truncate font-medium text-foreground">{delegate.full_name}</p>
           <span className="shrink-0 text-xs text-muted-foreground">{delegate.badge_code}</span>
+          {pending && (
+            <span className="shrink-0 rounded bg-info-soft px-1.5 py-0.5 text-xs font-medium text-info">
+              Self-registered at kiosk — confirm &amp; issue badge
+            </span>
+          )}
         </div>
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
           <FieldStatus label="Email" value={delegate.email} />
