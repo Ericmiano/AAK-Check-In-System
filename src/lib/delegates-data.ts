@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -88,6 +88,14 @@ export function useDelegates() {
   const { data: activeEvent } = useActiveEvent();
   const eventId = activeEvent?.id;
   const { data: staffNames } = useStaffNames();
+  // useDelegates() is no longer guaranteed to mount only once per page (e.g.
+  // OrganizationCombobox pulls in useOrganizations() -> useDelegates() from
+  // inside a dialog that sits alongside a page-level useDelegates() call),
+  // so the channel name needs to be unique per hook instance — otherwise a
+  // second instance's `.channel(sameName)` collides with the first's
+  // already-subscribed channel ("cannot add postgres_changes callbacks...
+  // after subscribe()").
+  const instanceId = useId();
 
   // Filtered to the active event on both tables (check_ins only got an
   // event_id of its own recently) so a check-in or roster change in a
@@ -98,7 +106,7 @@ export function useDelegates() {
     if (!eventId) return;
     const filter = `event_id=eq.${eventId}`;
     const channel = supabase
-      .channel(`delegates-and-check-ins-${eventId}`)
+      .channel(`delegates-and-check-ins-${eventId}-${instanceId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "delegates", filter },
@@ -113,7 +121,7 @@ export function useDelegates() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient, eventId]);
+  }, [queryClient, eventId, instanceId]);
 
   const rawQuery = useQuery({
     queryKey: [...DELEGATES_KEY, eventId],
@@ -142,6 +150,23 @@ export function useDelegates() {
   }, [rawQuery.data, staffNames]);
 
   return { ...rawQuery, data };
+}
+
+/**
+ * Distinct organizations already on the roster, for staff to pick from
+ * instead of retyping — keeps "Ministry of Housing" from also becoming
+ * "ministry of housing" and "MoH" as three different values that then
+ * can't be filtered or grouped together.
+ */
+export function useOrganizations(): string[] {
+  const { data: delegates } = useDelegates();
+  return useMemo(
+    () =>
+      Array.from(
+        new Set((delegates ?? []).map((d) => d.organization).filter((o): o is string => !!o)),
+      ).sort((a, b) => a.localeCompare(b)),
+    [delegates],
+  );
 }
 
 export type DashboardStats = {

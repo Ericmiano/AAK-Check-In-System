@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { FulfillmentToggle } from "@/components/fulfillment-toggle";
+import { OrganizationCombobox } from "@/components/organization-combobox";
 import {
   Dialog,
   DialogContent,
@@ -63,7 +64,7 @@ type CheckInResponse = {
 };
 
 type AddAndCheckInResponse = {
-  result: "checked_in" | "already_checked_in" | "duplicate";
+  result: "checked_in" | "already_checked_in";
   delegate: { full_name: string; organization: string | null; badge_code: string };
 };
 
@@ -444,15 +445,22 @@ function WalkInDialogContent({ onDone }: { onDone: (result: CheckInResult) => vo
       return data as unknown as AddAndCheckInResponse;
     },
     onSuccess: (data) => {
-      if (data.result === "duplicate") {
-        setError(`${data.delegate.full_name} is already in the system. Search for them instead.`);
+      const detail = [data.delegate.full_name, data.delegate.organization]
+        .filter(Boolean)
+        .join(", ");
+      if (data.result === "already_checked_in") {
+        // They were already on the list and already checked in today —
+        // the record was still updated with whatever new details were
+        // just typed, so this isn't an error, just a heads-up.
+        noticeFeedback();
+        onDone({ kind: "already_checked_in", title: "Already checked in today", detail });
         return;
       }
       successFeedback();
       onDone({
         kind: "checked_in",
         title: "Checked in",
-        detail: `${[data.delegate.full_name, data.delegate.organization].filter(Boolean).join(", ")} (walk-in)`,
+        detail: `${detail} (walk-in)`,
       });
     },
     onError: (err) => {
@@ -496,11 +504,7 @@ function WalkInDialogContent({ onDone }: { onDone: (result: CheckInResult) => vo
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="wi_org">Organization (optional)</Label>
-          <Input
-            id="wi_org"
-            value={organization}
-            onChange={(e) => setOrganization(e.target.value)}
-          />
+          <OrganizationCombobox id="wi_org" value={organization} onChange={setOrganization} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="wi_phone">Phone (optional)</Label>

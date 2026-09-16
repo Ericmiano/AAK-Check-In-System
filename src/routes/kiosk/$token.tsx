@@ -67,6 +67,45 @@ function KioskPage() {
   const [result, setResult] = useState<KioskResult | null>(null);
   const isOnline = useOnlineStatus();
 
+  type CheckInPayload = {
+    result: "checked_in" | "already_checked_in" | "not_found" | "needs_details";
+    full_name?: string;
+    organization?: string;
+    missing_email?: boolean;
+    missing_phone?: boolean;
+  };
+
+  // Shared by handleSubmit and handleRegister: self-registering can now
+  // land on an existing record (see handleRegister) and end up with this
+  // exact same set of outcomes, so both paths render them identically.
+  function applyCheckInPayload(payload: CheckInPayload) {
+    if (payload.result === "not_found") {
+      setResult({ kind: "not_found" });
+      return;
+    }
+    if (payload.result === "needs_details") {
+      // A name match exists, but the record on file is still missing
+      // email and/or phone — hold off on the check-in until those are
+      // filled in, since a name by itself isn't enough to tell two
+      // same-named delegates apart later.
+      setResult({
+        kind: "needs_details",
+        missingEmail: payload.missing_email ?? false,
+        missingPhone: payload.missing_phone ?? false,
+      });
+      return;
+    }
+    setResult({
+      kind: payload.result,
+      fullName: payload.full_name ?? "",
+      organization: payload.organization ?? "",
+    });
+    setFullName("");
+    setEmail("");
+    setPhone("");
+    setOrganization("");
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -80,36 +119,7 @@ function KioskPage() {
         ...(phone.trim() ? { p_phone: phone.trim() } : {}),
       });
       if (error) throw error;
-      const payload = data as unknown as {
-        result: "checked_in" | "already_checked_in" | "not_found" | "needs_details";
-        full_name?: string;
-        organization?: string;
-        missing_email?: boolean;
-        missing_phone?: boolean;
-      };
-      if (payload.result === "not_found") {
-        setResult({ kind: "not_found" });
-      } else if (payload.result === "needs_details") {
-        // A name match exists, but the record on file is still missing
-        // email and/or phone — hold off on the check-in until those are
-        // filled in, since a name by itself isn't enough to tell two
-        // same-named delegates apart later.
-        setResult({
-          kind: "needs_details",
-          missingEmail: payload.missing_email ?? false,
-          missingPhone: payload.missing_phone ?? false,
-        });
-      } else {
-        setResult({
-          kind: payload.result,
-          fullName: payload.full_name ?? "",
-          organization: payload.organization ?? "",
-        });
-        setFullName("");
-        setEmail("");
-        setPhone("");
-        setOrganization("");
-      }
+      applyCheckInPayload(data as unknown as CheckInPayload);
     } catch (err) {
       reportClientError(err, { context: "kiosk_check_in" });
       setResult({
@@ -129,11 +139,14 @@ function KioskPage() {
 
   // Not on any list — either a genuine walk-in, or a real registrant whose
   // name just didn't match. Either way they can register themselves right
-  // here instead of queueing for a staff member to type it in, but this
-  // never checks them in directly: it lands as 'pending', and a staff
-  // member still confirms them in person to hand over an actual badge —
-  // which is also where a paid event's staff can ask to see proof of
-  // payment before finalizing anything.
+  // here instead of queueing for a staff member to type it in. A genuinely
+  // new name lands as 'pending', and a staff member still confirms them in
+  // person to hand over an actual badge — which is also where a paid
+  // event's staff can ask to see proof of payment before finalizing
+  // anything. If the name actually does match one existing record (e.g. it
+  // slipped past the stricter initial search), the server updates that
+  // record and checks it in directly instead of erroring — so this can
+  // also come back with any of the normal check-in outcomes.
   async function handleRegister() {
     setRegistering(true);
     setResult(null);
@@ -146,12 +159,16 @@ function KioskPage() {
         ...(organization.trim() ? { p_organization: organization.trim() } : {}),
       });
       if (error) throw error;
-      const payload = data as unknown as { result: "registered"; full_name: string };
-      setResult({ kind: "registered", fullName: payload.full_name });
-      setFullName("");
-      setEmail("");
-      setPhone("");
-      setOrganization("");
+      const payload = data as unknown as CheckInPayload | { result: "registered"; full_name: string };
+      if (payload.result === "registered") {
+        setResult({ kind: "registered", fullName: payload.full_name });
+        setFullName("");
+        setEmail("");
+        setPhone("");
+        setOrganization("");
+      } else {
+        applyCheckInPayload(payload);
+      }
     } catch (err) {
       reportClientError(err, { context: "kiosk_self_register" });
       setResult({

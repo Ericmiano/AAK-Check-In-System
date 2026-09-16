@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { OrganizationCombobox } from "@/components/organization-combobox";
 import { DELEGATES_KEY, type DelegateRow } from "@/lib/delegates-data";
 import { supabase } from "@/integrations/supabase/client";
 import { errorMessage } from "@/lib/errors";
@@ -116,11 +117,7 @@ export function EditDelegateDialog({ delegate }: { delegate: DelegateRow }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="edit_org">Organization / institution</Label>
-            <Input
-              id="edit_org"
-              value={organization}
-              onChange={(e) => setOrganization(e.target.value)}
-            />
+            <OrganizationCombobox id="edit_org" value={organization} onChange={setOrganization} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="edit_phone">Phone</Label>

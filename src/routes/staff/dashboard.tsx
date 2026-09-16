@@ -55,6 +55,7 @@ import {
   DELEGATES_KEY,
   useDashboardStats,
   useDelegates,
+  useOrganizations,
   delegatesToCsv,
   delegatesToJson,
   delegatesToXlsx,
@@ -118,17 +119,7 @@ function DashboardPage() {
     }
   }
 
-  const organizations = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (delegates ?? [])
-            .map((d) => d.organization)
-            .filter((org): org is string => !!org),
-        ),
-      ).sort(),
-    [delegates],
-  );
+  const organizations = useOrganizations();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
