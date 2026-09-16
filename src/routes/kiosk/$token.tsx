@@ -202,7 +202,7 @@ function KioskPage() {
         {result?.kind === "already_checked_in" && (
           <div className="animate-banner-in flex flex-col items-center gap-2 rounded-xl bg-warning p-6 text-center text-warning-foreground">
             <Clock className="size-10" aria-hidden="true" />
-            <p className="font-display text-xl">Already checked in</p>
+            <p className="font-display text-xl">Already checked in today</p>
             <p className="text-sm opacity-90">{result.fullName}</p>
           </div>
         )}

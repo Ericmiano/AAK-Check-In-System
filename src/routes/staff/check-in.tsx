@@ -111,7 +111,7 @@ function CheckInPage() {
       noticeFeedback();
       showResult({
         kind: "already_checked_in",
-        title: "Already checked in",
+        title: "Already checked in today",
         ...(detail ? { detail } : {}),
       });
     } else {
@@ -261,7 +261,7 @@ function CheckInPage() {
               onKeyDown={(e) => {
                 if (e.key !== "Enter" || checkInMutation.isPending) return;
                 const top = matches[0];
-                if (top && top.status !== "checked_in") {
+                if (top && !top.checked_in_today) {
                   checkInMutation.mutate({ lookup: top.id });
                 }
               }}
@@ -320,7 +320,7 @@ function DelegateResultRow({
   onUndo: () => void;
   undoing: boolean;
 }) {
-  const checkedIn = delegate.status === "checked_in";
+  const checkedInToday = delegate.checked_in_today;
   const pending = delegate.status === "pending";
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3">
@@ -342,9 +342,9 @@ function DelegateResultRow({
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <EditDelegateDialog delegate={delegate} />
-        {checkedIn ? (
+        {checkedInToday ? (
           <>
-            <Badge variant="secondary">Checked in</Badge>
+            <Badge variant="secondary">Checked in today</Badge>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -363,10 +363,10 @@ function DelegateResultRow({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Undo check-in?</AlertDialogTitle>
+                  <AlertDialogTitle>Undo today's check-in?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {delegate.full_name} will go back to "expected" and the check-in record will
-                    be removed. Use this only for an accidental check-in.
+                    This removes {delegate.full_name}'s check-in for today. Use this only for an
+                    accidental tap just now — it won't affect any other day's attendance.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

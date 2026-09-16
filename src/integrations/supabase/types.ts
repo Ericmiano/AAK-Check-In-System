@@ -108,6 +108,7 @@ export type Database = {
       }
       check_ins: {
         Row: {
+          check_in_date: string
           checked_in_at: string
           checked_in_by: string | null
           delegate_id: string
@@ -118,6 +119,7 @@ export type Database = {
           notes: string | null
         }
         Insert: {
+          check_in_date?: string
           checked_in_at?: string
           checked_in_by?: string | null
           delegate_id: string
@@ -128,6 +130,7 @@ export type Database = {
           notes?: string | null
         }
         Update: {
+          check_in_date?: string
           checked_in_at?: string
           checked_in_by?: string | null
           delegate_id?: string
@@ -141,7 +144,7 @@ export type Database = {
           {
             foreignKeyName: "check_ins_delegate_id_fkey"
             columns: ["delegate_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "delegates"
             referencedColumns: ["id"]
           },

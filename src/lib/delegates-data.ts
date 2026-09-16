@@ -14,19 +14,29 @@ export type DelegateRow = Tables<"delegates"> & {
    * trail regardless of what a given viewer can resolve client-side.
    */
   checked_in_by_name: string | null;
+  /** Whether their most recent check-in was today (the event runs multiple days). */
+  checked_in_today: boolean;
 };
 
 export const DELEGATES_KEY = ["delegates-raw"] as const;
 const STAFF_NAMES_KEY = ["staff-names"] as const;
 
-type EmbeddedCheckIn = Pick<Tables<"check_ins">, "checked_in_at" | "checked_in_by" | "method">;
+type EmbeddedCheckIn = Pick<
+  Tables<"check_ins">,
+  "checked_in_at" | "checked_in_by" | "method" | "check_in_date"
+>;
 
 type DelegateWithCheckIn = Tables<"delegates"> & {
-  // check_ins.delegate_id is unique, so this is a to-one relationship, but
-  // PostgREST's embed shape (bare object vs single-item array) has varied
-  // across versions, so both are handled where this is read.
+  // The event now runs multiple days, so a delegate can have more than one
+  // check_ins row (one per day) — this is a to-many relationship. The embed
+  // below asks PostgREST for just the most recent one.
   check_ins: EmbeddedCheckIn[] | EmbeddedCheckIn | null;
 };
+
+/** Today's date at the venue (Africa/Nairobi), as PostgREST/Postgres spells a `date`. */
+function nairobiToday(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Nairobi" }).format(new Date());
+}
 
 /**
  * One query instead of two: check_ins has no event_id of its own, so
@@ -35,13 +45,18 @@ type DelegateWithCheckIn = Tables<"delegates"> & {
  * only grows as more events pile up, even though only this event's rows
  * are ever used. Embedding check_ins through its FK to delegates lets
  * PostgREST scope it to the same event_id filter in a single round trip.
+ * Ordering the embed by check_in_date and capping it at 1 row gets each
+ * delegate's most recent check-in (any day) without needing to know
+ * "today" at fetch time.
  */
 async function fetchDelegatesRaw(eventId: string) {
   const { data, error } = await supabase
     .from("delegates")
-    .select("*, check_ins(checked_in_at, checked_in_by, method)")
+    .select("*, check_ins(checked_in_at, checked_in_by, method, check_in_date)")
     .eq("event_id", eventId)
     .order("full_name", { ascending: true })
+    .order("check_in_date", { referencedTable: "check_ins", ascending: false })
+    .limit(1, { referencedTable: "check_ins" })
     .returns<DelegateWithCheckIn[]>();
   if (error) throw error;
   return data ?? [];
@@ -108,6 +123,7 @@ export function useDelegates() {
 
   const data = useMemo<DelegateRow[] | undefined>(() => {
     if (!rawQuery.data) return undefined;
+    const today = nairobiToday();
     return rawQuery.data.map(({ check_ins, ...d }) => {
       const checkIn = Array.isArray(check_ins) ? check_ins[0] : check_ins;
       const staffName = checkIn?.checked_in_by ? staffNames?.get(checkIn.checked_in_by) : undefined;
@@ -120,6 +136,7 @@ export function useDelegates() {
         ...d,
         checked_in_at: checkIn?.checked_in_at ?? null,
         checked_in_by_name: attribution,
+        checked_in_today: checkIn?.check_in_date === today,
       };
     });
   }, [rawQuery.data, staffNames]);
@@ -129,7 +146,10 @@ export function useDelegates() {
 
 export type DashboardStats = {
   expected: number;
+  /** Distinct delegates checked in today (the event runs multiple days). */
   checked_in: number;
+  /** Distinct delegates ever checked in across the whole event (badges issued). */
+  checked_in_ever: number;
   walk_ins: number;
   last_check_in_at: string | null;
 };
@@ -191,7 +211,8 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: "status", get: (d) => d.status },
   { key: "badge_code", get: (d) => d.badge_code },
   { key: "source", get: (d) => d.source },
-  { key: "checked_in_at", get: (d) => d.checked_in_at ?? "" },
+  { key: "last_checked_in_at", get: (d) => d.checked_in_at ?? "" },
+  { key: "checked_in_today", get: (d) => (d.checked_in_today ? "yes" : "no") },
 ];
 
 /**

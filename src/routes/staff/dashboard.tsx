@@ -94,9 +94,9 @@ function DashboardPage() {
   const { data: delegates } = useDelegates();
   const { data: activeEvent } = useActiveEvent();
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "expected" | "pending" | "checked_in">(
-    "all",
-  );
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "expected" | "pending" | "checked_in_today" | "absent_today"
+  >("all");
   const [orgFilter, setOrgFilter] = useState<string>("all");
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -132,7 +132,11 @@ function DashboardPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (delegates ?? []).filter((d) => {
-      if (statusFilter !== "all" && d.status !== statusFilter) return false;
+      if (statusFilter === "expected" && d.status !== "expected") return false;
+      if (statusFilter === "pending" && d.status !== "pending") return false;
+      if (statusFilter === "checked_in_today" && !d.checked_in_today) return false;
+      if (statusFilter === "absent_today" && (d.status !== "checked_in" || d.checked_in_today))
+        return false;
       if (orgFilter !== "all" && d.organization !== orgFilter) return false;
       if (
         q &&
@@ -153,9 +157,10 @@ function DashboardPage() {
   );
 
   const expected = stats?.expected ?? 0;
-  const checkedIn = stats?.checked_in ?? 0;
-  const remaining = Math.max(0, expected - checkedIn);
-  const turnout = expected > 0 ? Math.round((checkedIn / expected) * 100) : 0;
+  const checkedInToday = stats?.checked_in ?? 0;
+  const checkedInEver = stats?.checked_in_ever ?? 0;
+  const remainingToday = Math.max(0, expected - checkedInToday);
+  const turnoutToday = expected > 0 ? Math.round((checkedInToday / expected) * 100) : 0;
 
   return (
     <StaffShell staff={staff}>
@@ -203,11 +208,12 @@ function DashboardPage() {
 
         {staff.isAdmin && <KioskQrCard />}
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
           <MetricCard label="Expected delegates" value={expected} />
-          <MetricCard label="Checked in" value={checkedIn} />
-          <MetricCard label="Remaining" value={remaining} />
-          <MetricCard label="Turnout" value={turnout} suffix="%" />
+          <MetricCard label="Checked in today" value={checkedInToday} />
+          <MetricCard label="Checked in overall" value={checkedInEver} />
+          <MetricCard label="Remaining today" value={remainingToday} />
+          <MetricCard label="Turnout today" value={turnoutToday} suffix="%" />
         </div>
 
         <div className="panel flex flex-wrap gap-3 p-4">
@@ -228,7 +234,8 @@ function DashboardPage() {
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="expected">Expected</SelectItem>
               <SelectItem value="pending">Self-registered</SelectItem>
-              <SelectItem value="checked_in">Checked in</SelectItem>
+              <SelectItem value="checked_in_today">Checked in today</SelectItem>
+              <SelectItem value="absent_today">Attended before, not today</SelectItem>
             </SelectContent>
           </Select>
           <Select value={orgFilter} onValueChange={setOrgFilter}>
@@ -272,21 +279,20 @@ function DashboardPage() {
                       {d.organization ?? "—"}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          d.status === "checked_in"
-                            ? "default"
-                            : d.status === "pending"
-                              ? "secondary"
-                              : "outline"
-                        }
-                      >
-                        {d.status === "checked_in"
-                          ? "Checked in"
-                          : d.status === "pending"
-                            ? "Self-registered"
-                            : "Expected"}
-                      </Badge>
+                      {d.status === "pending" ? (
+                        <Badge variant="secondary">Self-registered</Badge>
+                      ) : d.status === "expected" ? (
+                        <Badge variant="outline">Expected</Badge>
+                      ) : d.checked_in_today ? (
+                        <Badge variant="default">Checked in today</Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-warning/40 bg-warning-soft text-warning"
+                        >
+                          Not checked in today
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="tabular text-muted-foreground">
                       {d.checked_in_at
