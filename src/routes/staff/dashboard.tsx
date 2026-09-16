@@ -1,21 +1,12 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Check,
-  ChevronDown,
-  Download,
-  Loader2,
-  Printer,
-  QrCode,
-  RefreshCw,
-  Trash2,
-  X,
-} from "lucide-react";
+import { ChevronDown, Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { QrBadge } from "@/components/qr-badge";
 import { EventPanel } from "@/components/event-panel";
 import { EditDelegateDialog } from "@/components/edit-delegate-dialog";
+import { FulfillmentToggle } from "@/components/fulfillment-toggle";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -327,10 +318,24 @@ function DashboardPage() {
                         : "—"}
                     </TableCell>
                     <TableCell>
-                      <FulfillmentIcon given={!!d.tag_issued_at} />
+                      <FulfillmentToggle
+                        label="Tag given"
+                        delegateId={d.id}
+                        checked={!!d.tag_issued_at}
+                        field="tag_issued_at"
+                        rpc="set_tag_issued"
+                        showLabel={false}
+                      />
                     </TableCell>
                     <TableCell>
-                      <FulfillmentIcon given={!!d.gift_bag_issued_at} />
+                      <FulfillmentToggle
+                        label="Gift bag given"
+                        delegateId={d.id}
+                        checked={!!d.gift_bag_issued_at}
+                        field="gift_bag_issued_at"
+                        rpc="set_gift_bag_issued"
+                        showLabel={false}
+                      />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -478,14 +483,6 @@ function PosterDialog({ url }: { url: string }) {
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function FulfillmentIcon({ given }: { given: boolean }) {
-  return given ? (
-    <Check className="size-4 text-primary" aria-label="Given" />
-  ) : (
-    <X className="size-4 text-muted-foreground/40" aria-label="Not given" />
   );
 }
 
