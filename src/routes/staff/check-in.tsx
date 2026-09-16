@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -339,6 +340,20 @@ function DelegateResultRow({
           <FieldStatus label="Institution" value={delegate.organization} />
           <FieldStatus label="Phone" value={delegate.phone} />
         </div>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <FulfillmentToggle
+            label="Tag given"
+            delegateId={delegate.id}
+            checked={!!delegate.tag_issued_at}
+            rpc="set_tag_issued"
+          />
+          <FulfillmentToggle
+            label="Gift bag given"
+            delegateId={delegate.id}
+            checked={!!delegate.gift_bag_issued_at}
+            rpc="set_gift_bag_issued"
+          />
+        </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
         <EditDelegateDialog delegate={delegate} />
@@ -383,6 +398,47 @@ function DelegateResultRow({
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * A simple yes/no hand-out tracker (tag, gift bag) shown next to each search
+ * result. Kept independent of check-in status — the desk can run out of
+ * tags or bags, or hand them out out of order — so staff mark each one
+ * explicitly rather than it being assumed from "checked in".
+ */
+function FulfillmentToggle({
+  label,
+  delegateId,
+  checked,
+  rpc,
+}: {
+  label: string;
+  delegateId: string;
+  checked: boolean;
+  rpc: "set_tag_issued" | "set_gift_bag_issued";
+}) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: async (next: boolean) => {
+      const { error } = await supabase.rpc(rpc, { p_delegate_id: delegateId, p_issued: next });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: DELEGATES_KEY }),
+    onError: (err) => reportClientError(err, { context: rpc }),
+  });
+
+  const id = `${rpc}-${delegateId}`;
+  return (
+    <label htmlFor={id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Checkbox
+        id={id}
+        checked={checked}
+        disabled={mutation.isPending}
+        onCheckedChange={(next) => mutation.mutate(next === true)}
+      />
+      {label}
+    </label>
   );
 }
 

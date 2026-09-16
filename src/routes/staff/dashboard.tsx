@@ -1,7 +1,17 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Download,
+  Loader2,
+  Printer,
+  QrCode,
+  RefreshCw,
+  Trash2,
+  X,
+} from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { QrBadge } from "@/components/qr-badge";
 import { EventPanel } from "@/components/event-panel";
@@ -161,6 +171,14 @@ function DashboardPage() {
   const checkedInEver = stats?.checked_in_ever ?? 0;
   const remainingToday = Math.max(0, expected - checkedInToday);
   const turnoutToday = expected > 0 ? Math.round((checkedInToday / expected) * 100) : 0;
+  const tagsGiven = useMemo(
+    () => (delegates ?? []).filter((d) => d.tag_issued_at).length,
+    [delegates],
+  );
+  const giftBagsGiven = useMemo(
+    () => (delegates ?? []).filter((d) => d.gift_bag_issued_at).length,
+    [delegates],
+  );
 
   return (
     <StaffShell staff={staff}>
@@ -208,12 +226,16 @@ function DashboardPage() {
 
         {staff.isAdmin && <KioskQrCard />}
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <MetricCard label="Expected delegates" value={expected} />
           <MetricCard label="Checked in today" value={checkedInToday} />
           <MetricCard label="Checked in overall" value={checkedInEver} />
           <MetricCard label="Remaining today" value={remainingToday} />
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <MetricCard label="Turnout today" value={turnoutToday} suffix="%" />
+          <MetricCard label="Tags given" value={tagsGiven} />
+          <MetricCard label="Gift bags given" value={giftBagsGiven} />
         </div>
 
         <div className="panel flex flex-wrap gap-3 p-4">
@@ -265,6 +287,8 @@ function DashboardPage() {
                   <TableHead>Organization</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Checked in</TableHead>
+                  <TableHead>Tag</TableHead>
+                  <TableHead>Gift bag</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -303,6 +327,12 @@ function DashboardPage() {
                         : "—"}
                     </TableCell>
                     <TableCell>
+                      <FulfillmentIcon given={!!d.tag_issued_at} />
+                    </TableCell>
+                    <TableCell>
+                      <FulfillmentIcon given={!!d.gift_bag_issued_at} />
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-1">
                         <EditDelegateDialog delegate={d} />
                         {staff.isAdmin && <DeleteDelegateButton delegate={d} />}
@@ -312,7 +342,7 @@ function DashboardPage() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                       No delegates match these filters.
                     </TableCell>
                   </TableRow>
@@ -448,6 +478,14 @@ function PosterDialog({ url }: { url: string }) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function FulfillmentIcon({ given }: { given: boolean }) {
+  return given ? (
+    <Check className="size-4 text-primary" aria-label="Given" />
+  ) : (
+    <X className="size-4 text-muted-foreground/40" aria-label="Not given" />
   );
 }
 

@@ -165,6 +165,8 @@ export type Database = {
           email: string | null
           event_id: string
           full_name: string
+          gift_bag_issued_at: string | null
+          gift_bag_issued_by: string | null
           id: string
           import_batch_id: string | null
           organization: string | null
@@ -172,6 +174,8 @@ export type Database = {
           photo_consent: boolean | null
           source: Database["public"]["Enums"]["delegate_source"]
           status: Database["public"]["Enums"]["delegate_status"]
+          tag_issued_at: string | null
+          tag_issued_by: string | null
           updated_at: string
         }
         Insert: {
@@ -181,6 +185,8 @@ export type Database = {
           email?: string | null
           event_id: string
           full_name: string
+          gift_bag_issued_at?: string | null
+          gift_bag_issued_by?: string | null
           id?: string
           import_batch_id?: string | null
           organization?: string | null
@@ -188,6 +194,8 @@ export type Database = {
           photo_consent?: boolean | null
           source?: Database["public"]["Enums"]["delegate_source"]
           status?: Database["public"]["Enums"]["delegate_status"]
+          tag_issued_at?: string | null
+          tag_issued_by?: string | null
           updated_at?: string
         }
         Update: {
@@ -197,6 +205,8 @@ export type Database = {
           email?: string | null
           event_id?: string
           full_name?: string
+          gift_bag_issued_at?: string | null
+          gift_bag_issued_by?: string | null
           id?: string
           import_batch_id?: string | null
           organization?: string | null
@@ -204,6 +214,8 @@ export type Database = {
           photo_consent?: boolean | null
           source?: Database["public"]["Enums"]["delegate_source"]
           status?: Database["public"]["Enums"]["delegate_status"]
+          tag_issued_at?: string | null
+          tag_issued_by?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -464,6 +476,8 @@ export type Database = {
       public_get_badge: { Args: { p_token: string }; Returns: Json }
       remove_test_delegates: { Args: never; Returns: number }
       resolve_staff_login: { Args: { p_username: string }; Returns: string }
+      set_tag_issued: { Args: { p_delegate_id: string; p_issued: boolean }; Returns: Json }
+      set_gift_bag_issued: { Args: { p_delegate_id: string; p_issued: boolean }; Returns: Json }
       undo_check_in: { Args: { p_delegate_id: string }; Returns: Json }
       update_delegate_details: {
         Args: {

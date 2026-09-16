@@ -213,6 +213,8 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: "source", get: (d) => d.source },
   { key: "last_checked_in_at", get: (d) => d.checked_in_at ?? "" },
   { key: "checked_in_today", get: (d) => (d.checked_in_today ? "yes" : "no") },
+  { key: "tag_given", get: (d) => (d.tag_issued_at ? "yes" : "no") },
+  { key: "gift_bag_given", get: (d) => (d.gift_bag_issued_at ? "yes" : "no") },
 ];
 
 /**
