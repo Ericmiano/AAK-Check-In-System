@@ -10,6 +10,7 @@ import { FulfillmentToggle } from "@/components/fulfillment-toggle";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -100,6 +101,7 @@ function DashboardPage() {
     "all" | "expected" | "pending" | "checked_in_today" | "absent_today"
   >("all");
   const [orgFilter, setOrgFilter] = useState<string>("all");
+  const [missingOnly, setMissingOnly] = useState(false);
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
@@ -130,6 +132,7 @@ function DashboardPage() {
       if (statusFilter === "absent_today" && (d.status !== "checked_in" || d.checked_in_today))
         return false;
       if (orgFilter !== "all" && d.organization !== orgFilter) return false;
+      if (missingOnly && d.email && d.phone && d.organization) return false;
       if (
         q &&
         !(d.full_name.toLowerCase().includes(q) || (d.email ?? "").toLowerCase().includes(q))
@@ -137,7 +140,7 @@ function DashboardPage() {
         return false;
       return true;
     });
-  }, [delegates, query, statusFilter, orgFilter]);
+  }, [delegates, query, statusFilter, orgFilter, missingOnly]);
 
   const recentCheckIns = useMemo(
     () =>
@@ -255,6 +258,13 @@ function DashboardPage() {
               ))}
             </SelectContent>
           </Select>
+          <label className="flex items-center gap-1.5 self-center text-sm text-muted-foreground">
+            <Checkbox
+              checked={missingOnly}
+              onCheckedChange={(next) => setMissingOnly(next === true)}
+            />
+            Missing email, phone, or organization
+          </label>
           <span className="ml-auto self-center text-sm text-muted-foreground tabular">
             {filtered.length} of {delegates?.length ?? 0}
           </span>
