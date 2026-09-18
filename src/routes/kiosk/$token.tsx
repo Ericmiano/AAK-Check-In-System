@@ -106,37 +106,6 @@ function KioskPage() {
     setOrganization("");
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setResult(null);
-    try {
-      const { data, error } = await supabase.rpc("kiosk_check_in", {
-        p_token: token,
-        p_full_name: fullName,
-        ...(email.trim() ? { p_email: email.trim() } : {}),
-        ...(organization.trim() ? { p_organization: organization.trim() } : {}),
-        ...(phone.trim() ? { p_phone: phone.trim() } : {}),
-      });
-      if (error) throw error;
-      applyCheckInPayload(data as unknown as CheckInPayload);
-    } catch (err) {
-      reportClientError(err, { context: "kiosk_check_in" });
-      setResult({
-        kind: "error",
-        message: !navigator.onLine
-          ? "You appear to be offline. Reconnect and try again, or see a staff member."
-          : errorMessage(err),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const needsDetails = result?.kind === "needs_details" ? result : null;
-  const emailRequired = needsDetails?.missingEmail ?? false;
-  const phoneRequired = needsDetails?.missingPhone ?? false;
-
   // Not on any list — either a genuine walk-in, or a real registrant whose
   // name just didn't match. Either way they can register themselves right
   // here instead of queueing for a staff member to type it in. A genuinely
@@ -146,10 +115,9 @@ function KioskPage() {
   // anything. If the name actually does match one existing record (e.g. it
   // slipped past the stricter initial search), the server updates that
   // record and checks it in directly instead of erroring — so this can
-  // also come back with any of the normal check-in outcomes.
-  async function handleRegister() {
-    setRegistering(true);
-    setResult(null);
+  // also come back with any of the normal check-in outcomes. Never throws —
+  // any failure lands directly in the "error" result state.
+  async function performRegister() {
     try {
       const { data, error } = await supabase.rpc("kiosk_self_register", {
         p_token: token,
@@ -177,9 +145,54 @@ function KioskPage() {
           ? "You appear to be offline. Reconnect and try again, or see a staff member."
           : errorMessage(err),
       });
-    } finally {
-      setRegistering(false);
     }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.rpc("kiosk_check_in", {
+        p_token: token,
+        p_full_name: fullName,
+        ...(email.trim() ? { p_email: email.trim() } : {}),
+        ...(organization.trim() ? { p_organization: organization.trim() } : {}),
+        ...(phone.trim() ? { p_phone: phone.trim() } : {}),
+      });
+      if (error) throw error;
+      const payload = data as unknown as CheckInPayload;
+      // Not on the list, but email + phone were already typed in this same
+      // submission — go straight to registering them as new instead of
+      // making them press a second button for information they've already
+      // given us.
+      if (payload.result === "not_found" && email.trim() && phone.trim()) {
+        await performRegister();
+      } else {
+        applyCheckInPayload(payload);
+      }
+    } catch (err) {
+      reportClientError(err, { context: "kiosk_check_in" });
+      setResult({
+        kind: "error",
+        message: !navigator.onLine
+          ? "You appear to be offline. Reconnect and try again, or see a staff member."
+          : errorMessage(err),
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const needsDetails = result?.kind === "needs_details" ? result : null;
+  const emailRequired = needsDetails?.missingEmail ?? false;
+  const phoneRequired = needsDetails?.missingPhone ?? false;
+
+  async function handleRegister() {
+    setRegistering(true);
+    setResult(null);
+    await performRegister();
+    setRegistering(false);
   }
 
   return (
@@ -190,7 +203,8 @@ function KioskPage() {
       </p>
       <h1 className="mt-2 text-center font-display text-3xl text-foreground">Check in</h1>
       <p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
-        Enter your name exactly as it was registered, then fill in whatever else is missing.
+        Enter your name as it was registered. Adding your email and phone too means we can
+        register you on the spot if you're not on the list yet.
       </p>
       {eventNameLoaded && !eventName && (
         <div className="mt-3 flex items-center gap-2 rounded-lg bg-warning-soft px-4 py-2.5 text-sm text-foreground">
