@@ -258,13 +258,28 @@ export const EXPORT_COLUMNS: ExportColumn[] = [
  * narrowed to `selectedKeys` when given (an explicit pick always wins, even
  * if every value happens to be blank); otherwise every column with at least
  * one non-empty value across the exported rows is included. Rows with no
- * name at all are always dropped.
+ * name at all are always dropped, and — when email and/or phone are among
+ * the exported columns — so is a row missing all of the contact fields
+ * actually being exported (e.g. exporting name + phone + email drops
+ * anyone with neither, but exporting name + organization alone doesn't).
  */
-function activeExportData(delegates: DelegateRow[], selectedKeys?: readonly string[]) {
-  const rows = delegates.filter((d) => d.full_name.trim() !== "");
+export function activeExportData(delegates: DelegateRow[], selectedKeys?: readonly string[]) {
+  let rows = delegates.filter((d) => d.full_name.trim() !== "");
   const columns = selectedKeys
     ? EXPORT_COLUMNS.filter((c) => selectedKeys.includes(c.key))
     : EXPORT_COLUMNS.filter((c) => rows.some((d) => c.get(d).trim() !== ""));
+
+  // A name with neither a phone nor an email isn't reachable from this
+  // file — when either of those is one of the exported columns, only keep
+  // rows that actually have at least one of the ones being exported (not
+  // necessarily both).
+  const contactKeys = columns.map((c) => c.key).filter((k) => k === "email" || k === "phone");
+  if (contactKeys.length > 0) {
+    rows = rows.filter((d) =>
+      contactKeys.some((k) => !!(k === "email" ? d.email : d.phone)?.trim()),
+    );
+  }
+
   return { rows, columns };
 }
 

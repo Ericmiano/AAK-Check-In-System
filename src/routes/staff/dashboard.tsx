@@ -59,6 +59,7 @@ import {
   downloadJson,
   downloadBlob,
   EXPORT_COLUMNS,
+  activeExportData,
   type DelegateRow,
 } from "@/lib/delegates-data";
 import { useActiveEvent } from "@/lib/events-data";
@@ -467,6 +468,16 @@ function ExportDialog({
 
   const keys = Array.from(selected);
   const noneSelected = keys.length === 0;
+  // Reflects the same row-dropping the export functions themselves apply
+  // (no name, or — when email/phone are selected — neither contact field),
+  // so the count shown here matches what actually comes out the other end.
+  const exportRowCount = activeExportData(delegates, keys).rows.length;
+  const hasContactColumn = keys.includes("email") || keys.includes("phone");
+  const notes = [
+    ...(delegates.length !== totalCount ? ["matching the dashboard's current filters"] : []),
+    ...(hasContactColumn ? ["having at least one of the selected contact fields"] : []),
+  ];
+  const exportNoteSuffix = notes.length > 0 ? ` (${notes.join(", ")})` : "";
 
   async function handleXlsx() {
     setExportError(null);
@@ -495,10 +506,8 @@ function ExportDialog({
         <DialogHeader>
           <DialogTitle>Export delegates</DialogTitle>
           <DialogDescription>
-            {delegates.length === totalCount
-              ? `All ${totalCount} delegates`
-              : `${delegates.length} of ${totalCount} delegates (matching the dashboard's current search and filters)`}
-            . Choose which details to include, then pick a format.
+            Choose which details to include, then pick a format. {exportRowCount} of {totalCount}{" "}
+            delegates will be included{exportNoteSuffix}.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
