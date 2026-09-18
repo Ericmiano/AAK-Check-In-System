@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Loader2, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
 import { StaffShell } from "@/components/staff-shell";
 import { QrBadge } from "@/components/qr-badge";
 import { EventPanel } from "@/components/event-panel";
@@ -30,6 +30,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -45,12 +46,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { requireStaff } from "@/lib/staff-session";
 import {
   DELEGATES_KEY,
@@ -63,6 +58,7 @@ import {
   downloadCsv,
   downloadJson,
   downloadBlob,
+  EXPORT_COLUMNS,
   type DelegateRow,
 } from "@/lib/delegates-data";
 import { useActiveEvent } from "@/lib/events-data";
@@ -102,24 +98,8 @@ function DashboardPage() {
   >("all");
   const [orgFilter, setOrgFilter] = useState<string>("all");
   const [missingOnly, setMissingOnly] = useState(false);
-  const [exportingXlsx, setExportingXlsx] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
 
   const fileBase = exportFileBase(activeEvent?.name);
-
-  async function handleExportXlsx() {
-    setExportError(null);
-    setExportingXlsx(true);
-    try {
-      const blob = await delegatesToXlsx(delegates ?? []);
-      downloadBlob(`${fileBase}.xlsx`, blob);
-    } catch (err) {
-      reportClientError(err, { context: "export_xlsx" });
-      setExportError(errorMessage(err));
-    } finally {
-      setExportingXlsx(false);
-    }
-  }
 
   const organizations = useOrganizations();
 
@@ -170,41 +150,7 @@ function DashboardPage() {
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-2xl text-foreground">Dashboard</h1>
-          <div className="flex flex-col items-end gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={exportingXlsx}>
-                  {exportingXlsx ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <Download className="size-4" aria-hidden="true" />
-                  )}
-                  Export
-                  <ChevronDown className="size-4" aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() =>
-                    downloadCsv(`${fileBase}.csv`, delegatesToCsv(delegates ?? []))
-                  }
-                >
-                  CSV — opens in Excel/Sheets
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportXlsx}>
-                  Excel (.xlsx) — for browsing or editing by hand
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    downloadJson(`${fileBase}.json`, delegatesToJson(delegates ?? []))
-                  }
-                >
-                  JSON — for scripts, backups, or re-import elsewhere
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {exportError && <p className="text-xs text-destructive">{exportError}</p>}
-          </div>
+          <ExportDialog delegates={filtered} totalCount={delegates?.length ?? 0} fileBase={fileBase} />
         </div>
 
         <EventPanel compact />
@@ -482,6 +428,117 @@ function PosterDialog({ url }: { url: string }) {
             Print
           </Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Exports whatever the dashboard's current search/status/org/missing-details
+ * filters are showing (not always the whole roster) — "just the rows I'm
+ * looking at" — and, within that, lets staff pick which columns actually
+ * end up in the file, so a request like "just names and phone numbers"
+ * doesn't require post-processing the full export by hand.
+ */
+function ExportDialog({
+  delegates,
+  totalCount,
+  fileBase,
+}: {
+  delegates: DelegateRow[];
+  totalCount: number;
+  fileBase: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(EXPORT_COLUMNS.map((c) => c.key)),
+  );
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  function toggle(key: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const keys = Array.from(selected);
+  const noneSelected = keys.length === 0;
+
+  async function handleXlsx() {
+    setExportError(null);
+    setExportingXlsx(true);
+    try {
+      const blob = await delegatesToXlsx(delegates, keys);
+      downloadBlob(`${fileBase}.xlsx`, blob);
+      setOpen(false);
+    } catch (err) {
+      reportClientError(err, { context: "export_xlsx" });
+      setExportError(errorMessage(err));
+    } finally {
+      setExportingXlsx(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Download className="size-4" aria-hidden="true" />
+          Export
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Export delegates</DialogTitle>
+          <DialogDescription>
+            {delegates.length === totalCount
+              ? `All ${totalCount} delegates`
+              : `${delegates.length} of ${totalCount} delegates (matching the dashboard's current search and filters)`}
+            . Choose which details to include, then pick a format.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {EXPORT_COLUMNS.map((c) => (
+            <label key={c.key} className="flex items-center gap-2 text-sm text-foreground">
+              <Checkbox checked={selected.has(c.key)} onCheckedChange={() => toggle(c.key)} />
+              {c.label}
+            </label>
+          ))}
+        </div>
+        {noneSelected && (
+          <p className="text-sm text-destructive">Pick at least one detail to export.</p>
+        )}
+        {exportError && <p className="text-sm text-destructive">{exportError}</p>}
+        <DialogFooter className="flex-wrap gap-2 sm:justify-start">
+          <Button
+            variant="outline"
+            disabled={noneSelected}
+            onClick={() => {
+              downloadCsv(`${fileBase}.csv`, delegatesToCsv(delegates, keys));
+              setOpen(false);
+            }}
+          >
+            CSV
+          </Button>
+          <Button variant="outline" disabled={noneSelected || exportingXlsx} onClick={handleXlsx}>
+            {exportingXlsx && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            Excel (.xlsx)
+          </Button>
+          <Button
+            variant="outline"
+            disabled={noneSelected}
+            onClick={() => {
+              downloadJson(`${fileBase}.json`, delegatesToJson(delegates, keys));
+              setOpen(false);
+            }}
+          >
+            JSON
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

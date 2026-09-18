@@ -226,32 +226,45 @@ export function useDashboardStats() {
   });
 }
 
-type ExportColumn = { key: string; get: (d: DelegateRow) => string };
+type ExportColumn = { key: string; label: string; get: (d: DelegateRow) => string };
 
-const EXPORT_COLUMNS: ExportColumn[] = [
-  { key: "full_name", get: (d) => d.full_name },
-  { key: "email", get: (d) => d.email ?? "" },
-  { key: "organization", get: (d) => d.organization ?? "" },
-  { key: "phone", get: (d) => d.phone ?? "" },
-  { key: "status", get: (d) => d.status },
-  { key: "badge_code", get: (d) => d.badge_code },
-  { key: "source", get: (d) => d.source },
-  { key: "last_checked_in_at", get: (d) => d.checked_in_at ?? "" },
-  { key: "checked_in_today", get: (d) => (d.checked_in_today ? "yes" : "no") },
-  { key: "tag_given", get: (d) => (d.tag_issued_at ? "yes" : "no") },
-  { key: "gift_bag_given", get: (d) => (d.gift_bag_issued_at ? "yes" : "no") },
+/** Exported so the UI can offer a checklist of which columns to include. */
+export const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: "full_name", label: "Full name", get: (d) => d.full_name },
+  { key: "email", label: "Email", get: (d) => d.email ?? "" },
+  { key: "organization", label: "Organization", get: (d) => d.organization ?? "" },
+  { key: "phone", label: "Phone", get: (d) => d.phone ?? "" },
+  { key: "status", label: "Status", get: (d) => d.status },
+  { key: "badge_code", label: "Badge code", get: (d) => d.badge_code },
+  { key: "source", label: "Source", get: (d) => d.source },
+  { key: "last_checked_in_at", label: "Last checked in at", get: (d) => d.checked_in_at ?? "" },
+  {
+    key: "checked_in_today",
+    label: "Checked in today",
+    get: (d) => (d.checked_in_today ? "yes" : "no"),
+  },
+  { key: "tag_given", label: "Tag given", get: (d) => (d.tag_issued_at ? "yes" : "no") },
+  {
+    key: "gift_bag_given",
+    label: "Gift bag given",
+    get: (d) => (d.gift_bag_issued_at ? "yes" : "no"),
+  },
 ];
 
 /**
  * Not every event collects every field ahead of time (e.g. a sign-in sheet
  * with just names, filled in on paper at the door), so a fixed column set
- * would export a wall of blanks. Shared by every export format: only
- * columns with at least one non-empty value across the exported rows are
- * included, and rows with no name at all are dropped entirely.
+ * would export a wall of blanks. Shared by every export format: columns are
+ * narrowed to `selectedKeys` when given (an explicit pick always wins, even
+ * if every value happens to be blank); otherwise every column with at least
+ * one non-empty value across the exported rows is included. Rows with no
+ * name at all are always dropped.
  */
-function activeExportData(delegates: DelegateRow[]) {
+function activeExportData(delegates: DelegateRow[], selectedKeys?: readonly string[]) {
   const rows = delegates.filter((d) => d.full_name.trim() !== "");
-  const columns = EXPORT_COLUMNS.filter((c) => rows.some((d) => c.get(d).trim() !== ""));
+  const columns = selectedKeys
+    ? EXPORT_COLUMNS.filter((c) => selectedKeys.includes(c.key))
+    : EXPORT_COLUMNS.filter((c) => rows.some((d) => c.get(d).trim() !== ""));
   return { rows, columns };
 }
 
@@ -276,8 +289,8 @@ function csvPhoneCell(phone: string): string {
   return csvEscape(`="${phone.replace(/"/g, '""')}"`);
 }
 
-export function delegatesToCsv(delegates: DelegateRow[]): string {
-  const { rows, columns } = activeExportData(delegates);
+export function delegatesToCsv(delegates: DelegateRow[], selectedKeys?: readonly string[]): string {
+  const { rows, columns } = activeExportData(delegates, selectedKeys);
   const header = columns.map((c) => c.key);
   const lines = rows.map((d) =>
     columns
@@ -288,8 +301,8 @@ export function delegatesToCsv(delegates: DelegateRow[]): string {
 }
 
 /** Plain structured data — no spreadsheet-app quirks, safe for scripts, backups, or re-import elsewhere. */
-export function delegatesToJson(delegates: DelegateRow[]): string {
-  const { rows, columns } = activeExportData(delegates);
+export function delegatesToJson(delegates: DelegateRow[], selectedKeys?: readonly string[]): string {
+  const { rows, columns } = activeExportData(delegates, selectedKeys);
   const records = rows.map((d) =>
     Object.fromEntries(columns.map((c) => [c.key, c.get(d) || null])),
   );
@@ -302,8 +315,11 @@ export function delegatesToJson(delegates: DelegateRow[]): string {
  * clean with no extra step, and is the more familiar format for staff who
  * just want to browse or filter the list by hand.
  */
-export async function delegatesToXlsx(delegates: DelegateRow[]): Promise<Blob> {
-  const { rows, columns } = activeExportData(delegates);
+export async function delegatesToXlsx(
+  delegates: DelegateRow[],
+  selectedKeys?: readonly string[],
+): Promise<Blob> {
+  const { rows, columns } = activeExportData(delegates, selectedKeys);
   const ExcelJS = (await import("exceljs")).default;
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Delegates");
