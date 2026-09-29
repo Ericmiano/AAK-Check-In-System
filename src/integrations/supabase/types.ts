@@ -176,6 +176,8 @@ export type Database = {
           status: Database["public"]["Enums"]["delegate_status"]
           tag_issued_at: string | null
           tag_issued_by: string | null
+          unsigned_at: string | null
+          unsigned_by: string | null
           updated_at: string
         }
         Insert: {
@@ -196,6 +198,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["delegate_status"]
           tag_issued_at?: string | null
           tag_issued_by?: string | null
+          unsigned_at?: string | null
+          unsigned_by?: string | null
           updated_at?: string
         }
         Update: {
@@ -216,6 +220,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["delegate_status"]
           tag_issued_at?: string | null
           tag_issued_by?: string | null
+          unsigned_at?: string | null
+          unsigned_by?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -478,6 +484,7 @@ export type Database = {
       resolve_staff_login: { Args: { p_username: string }; Returns: string }
       set_tag_issued: { Args: { p_delegate_id: string; p_issued: boolean }; Returns: Json }
       set_gift_bag_issued: { Args: { p_delegate_id: string; p_issued: boolean }; Returns: Json }
+      set_unsigned: { Args: { p_delegate_id: string; p_flagged: boolean }; Returns: Json }
       undo_check_in: { Args: { p_delegate_id: string }; Returns: Json }
       update_delegate_details: {
         Args: {

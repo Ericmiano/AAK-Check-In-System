@@ -249,6 +249,7 @@ export const EXPORT_COLUMNS: ExportColumn[] = [
     label: "Gift bag given",
     get: (d) => (d.gift_bag_issued_at ? "yes" : "no"),
   },
+  { key: "unsigned", label: "Unsigned", get: (d) => (d.unsigned_at ? "yes" : "no") },
 ];
 
 /**

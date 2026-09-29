@@ -356,6 +356,14 @@ function DelegateResultRow({
             field="gift_bag_issued_at"
             rpc="set_gift_bag_issued"
           />
+          <FulfillmentToggle
+            label="Unsigned"
+            delegateId={delegate.id}
+            checked={!!delegate.unsigned_at}
+            field="unsigned_at"
+            rpc="set_unsigned"
+            paramName="p_flagged"
+          />
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">

@@ -24,19 +24,27 @@ export function FulfillmentToggle({
   checked,
   field,
   rpc,
+  paramName = "p_issued",
   showLabel = true,
 }: {
   label: string;
   delegateId: string;
   checked: boolean;
-  field: "tag_issued_at" | "gift_bag_issued_at";
-  rpc: "set_tag_issued" | "set_gift_bag_issued";
+  field: "tag_issued_at" | "gift_bag_issued_at" | "unsigned_at";
+  rpc: "set_tag_issued" | "set_gift_bag_issued" | "set_unsigned";
+  /** The RPC's boolean parameter name — most use p_issued, set_unsigned uses p_flagged. */
+  paramName?: "p_issued" | "p_flagged";
   showLabel?: boolean;
 }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: async (next: boolean) => {
-      const { error } = await supabase.rpc(rpc, { p_delegate_id: delegateId, p_issued: next });
+      const args = { p_delegate_id: delegateId, [paramName]: next };
+      // supabase.rpc()'s overloads can't resolve a computed key against a
+      // union of exact per-function argument shapes, even though each
+      // (rpc, paramName) pair used here is always a valid, matching one.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await supabase.rpc(rpc, args as any);
       if (error) throw error;
     },
     onMutate: async (next: boolean) => {

@@ -145,6 +145,10 @@ function DashboardPage() {
     () => (delegates ?? []).filter((d) => d.gift_bag_issued_at).length,
     [delegates],
   );
+  const unsignedCount = useMemo(
+    () => (delegates ?? []).filter((d) => d.unsigned_at).length,
+    [delegates],
+  );
 
   return (
     <StaffShell staff={staff}>
@@ -168,6 +172,7 @@ function DashboardPage() {
           <MetricCard label="Turnout today" value={turnoutToday} suffix="%" />
           <MetricCard label="Tags given" value={tagsGiven} />
           <MetricCard label="Gift bags given" value={giftBagsGiven} />
+          <MetricCard label="Unsigned" value={unsignedCount} />
         </div>
 
         <div className="panel flex flex-wrap gap-3 p-4">
@@ -228,6 +233,7 @@ function DashboardPage() {
                   <TableHead>Checked in</TableHead>
                   <TableHead>Tag</TableHead>
                   <TableHead>Gift bag</TableHead>
+                  <TableHead>Unsigned</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -286,6 +292,17 @@ function DashboardPage() {
                       />
                     </TableCell>
                     <TableCell>
+                      <FulfillmentToggle
+                        label="Unsigned"
+                        delegateId={d.id}
+                        checked={!!d.unsigned_at}
+                        field="unsigned_at"
+                        rpc="set_unsigned"
+                        paramName="p_flagged"
+                        showLabel={false}
+                      />
+                    </TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-1">
                         <EditDelegateDialog delegate={d} />
                         {staff.isAdmin && <DeleteDelegateButton delegate={d} />}
@@ -295,7 +312,7 @@ function DashboardPage() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No delegates match these filters.
                     </TableCell>
                   </TableRow>
